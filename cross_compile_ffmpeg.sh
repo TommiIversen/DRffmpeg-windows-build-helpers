@@ -2281,7 +2281,9 @@ build_libMXF() {
 
 build_ffmpeg() {
   local extra_postpend_configure_options=$2
+  #local build_type="shared"
   local build_type=$1
+
   if [[ -z $3 ]]; then
     local output_dir="ffmpeg_git"
   else
@@ -2317,6 +2319,7 @@ build_ffmpeg() {
 
   # allow using local source directory version of ffmpeg
   if [[ -z $ffmpeg_source_dir ]]; then
+
     do_git_checkout $ffmpeg_git_checkout $output_dir $ffmpeg_git_checkout_version || exit 1
   else
     output_dir="${ffmpeg_source_dir}"
@@ -2340,6 +2343,10 @@ build_ffmpeg() {
     else
       local arch=x86_64
     fi
+
+    #Tommi
+    git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu
+    git apply "$patch_dir/02_mxfenc_patch.patch"  # slowpatch til liveu
 
     init_options="--pkg-config=pkg-config --pkg-config-flags=--static --extra-version=ffmpeg-windows-build-helpers --enable-version3 --disable-debug --disable-w32threads"
     if [[ $compiler_flavors != "native" ]]; then
@@ -2386,7 +2393,15 @@ build_ffmpeg() {
     config_options+=" --enable-libaom"
 
     if [[ $compiler_flavors != "native" ]]; then
-      config_options+=" --enable-nvenc --enable-nvdec" # don't work OS X
+      config_options+=" --enable-nvenc --enable-nvdec --enable-cuda --enable-cuda-nvcc --enable-libnpp" # don't work OS X
+      config_options+=" --extra-cflags=-I/usr/local/cuda/include/"
+      config_options+=" --extra-ldflags=-L/usr/local/cuda/lib64"
+      config_options+=" --extra-cflags=-I$patch_dir/npp/include/"
+      config_options+=" --extra-ldflags=-L$patch_dir/npp/lib/x64/"
+      
+      #config_options+=" --extra-ldflags=-L/usr/local/cuda/bin"
+      export PATH=/usr/local/cuda/bin:$PATH
+
     fi
 
     config_options+=" --extra-libs=-lharfbuzz" #  grr...needed for pre x264 build???
@@ -2725,7 +2740,7 @@ git_get_latest=y
 prefer_stable=y # Only for x264 and x265.
 build_intel_qsv=y # note: not windows xp friendly!
 build_amd_amf=y
-disable_nonfree=y # comment out to force user y/n selection
+disable_nonfree=n # comment out to force user y/n selection
 original_cflags='-mtune=generic -O3' # high compatible by default, see #219, some other good options are listed below, or you could use -march=native to target your local box:
 original_cppflags='-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0' # Needed for mingw-w64 7 as FORTIFY_SOURCE is now partially implemented, but not actually working
 # if you specify a march it needs to first so x264's configure will use it :| [ is that still the case ?]
