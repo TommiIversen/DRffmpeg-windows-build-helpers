@@ -1,0 +1,25 @@
+name: Update Version File
+
+on: [push]  # or any other event that triggers this action
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Add version info to json file
+      env:
+        VERSION: ${{ github.run_id }}.${{ github.run_number }}.${{ github.run_attempt }}
+      run: |
+        echo "{\"version\": \"$VERSION\"}" > assets/version.json
+
+    - name: Commit and Push Version File
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add assets/version.json
+        git commit -m "Update version file"
+        git push
