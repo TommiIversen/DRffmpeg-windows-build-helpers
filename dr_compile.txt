@@ -1,0 +1,20 @@
+./cross_compile_ffmpeg.sh --disable-nonfree=n --build-intel-qsv=n
+
+
+
+    if [[ $compiler_flavors != "native" ]]; then
+      config_options+=" --enable-nvenc --enable-nvdec --enable-cuda --enable-cuda-nvcc --enable-libnpp --enable-parser=h264 --enable-parser=acc" # don't work OS X
+      config_options+=" --extra-cflags=-I/usr/local/cuda/include/"
+      config_options+=" --extra-ldflags=-L/usr/local/cuda/lib64"
+      config_options+=" --extra-cflags=-I$patch_dir/npp/include/"
+      config_options+=" --extra-ldflags=-L$patch_dir/npp/lib/x64/"
+      
+      #config_options+=" --extra-ldflags=-L/usr/local/cuda/bin"
+      export PATH=/usr/local/cuda/bin:$PATH
+
+    fi
+
+
+
+# glib-2.6.3.tar.bz2 dødt link - fix med
+download_and_unpack_file https://src.fedoraproject.org/repo/pkgs/glib2/glib-2.64.3.tar.xz/sha512/a3828c37a50e86eb8791be53bd8af848d144e4580841ffab28f3b6eae5144f5cdf4a5d4b43130615b97488e700b274c2468fc7d561b3701a1fc686349501a1db/glib-2.64.3.tar.xz
