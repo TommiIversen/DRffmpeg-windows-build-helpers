@@ -874,7 +874,7 @@ build_amd_amf_headers() {
 }
 
 build_nv_headers() {
-  if [[ $ffmpeg_git_checkout_version == *"n6.0"* ]] || [[ $ffmpeg_git_checkout_version == *"n5.1"* ]] || [[ $ffmpeg_git_checkout_version == *"n5.0"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.4"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.3"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.2"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.1"* ]] || [[ $ffmpeg_git_checkout_version == *"n3.4"* ]] || [[ $ffmpeg_git_checkout_version == *"n3.2"* ]] || [[ $ffmpeg_git_checkout_version == *"n2.8"* ]]; then
+  if [[ $ffmpeg_git_checkout_version == *"n6.0"* ]] || [[ $ffmpeg_git_checkout_version == *"n5"* ]] || [[ $ffmpeg_git_checkout_version == *"n4"* ]] || [[ $ffmpeg_git_checkout_version == *"n3"* ]] || [[ $ffmpeg_git_checkout_version == *"n2"* ]]; then
     # nv_headers for old versions
     do_git_checkout https://github.com/FFmpeg/nv-codec-headers.git nv-codec-headers_git n12.0.16.1
   else
@@ -927,8 +927,7 @@ build_glib() {
   generic_download_and_make_and_install  https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.tar.gz
   reset_cppflags
   generic_download_and_make_and_install  https://github.com/libffi/libffi/releases/download/v3.3/libffi-3.3.tar.gz # also dep
-  #download_and_unpack_file https://gitlab.gnome.org/GNOME/glib/-/archive/2.64.3/glib-2.64.3.tar.gz TOMI fix
-  download_and_unpack_file https://src.fedoraproject.org/repo/pkgs/glib2/glib-2.64.3.tar.xz/sha512/a3828c37a50e86eb8791be53bd8af848d144e4580841ffab28f3b6eae5144f5cdf4a5d4b43130615b97488e700b274c2468fc7d561b3701a1fc686349501a1db/glib-2.64.3.tar.xz
+  download_and_unpack_file https://gitlab.gnome.org/GNOME/glib/-/archive/2.64.3/glib-2.64.3.tar.gz
   cd glib-2.64.3
     apply_patch  file://$patch_dir/glib-2.64.3_mingw-static.patch -p1
     export CPPFLAGS="$CPPFLAGS -pthread -DGLIB_STATIC_COMPILATION"
@@ -1379,8 +1378,15 @@ build_libsndfile() {
 build_mpg123() {
   do_svn_checkout svn://scm.orgis.org/mpg123/trunk mpg123_svn r5008 # avoid Think again failure
   cd mpg123_svn
-    generic_configure
-    do_make_and_make_install
+
+  # Fjern problematisk makro LT_SYS_MODULE_EXT fra configure.ac
+  sed -i '/LT_SYS_MODULE_EXT/d' configure.ac
+
+  # Regenerer configure-scriptet
+  autoreconf -fiv
+
+  generic_configure
+  do_make_and_make_install
   cd ..
 }
 
@@ -1448,8 +1454,8 @@ build_libmodplug() {
 
 build_libgme() {
   # do_git_checkout https://bitbucket.org/mpyne/game-music-emu.git
-  download_and_unpack_file https://bitbucket.org/mpyne/game-music-emu/downloads/game-music-emu-0.6.3.tar.xz
-  cd game-music-emu-0.6.3
+  download_and_unpack_file https://github.com/libgme/game-music-emu/releases/download/0.6.3/libgme-0.6.3-src.tar.gz libgme-0.6.3
+  cd libgme-0.6.3
     do_cmake_and_install "-DENABLE_UBSAN=0"
   cd ..
 }
@@ -1755,6 +1761,13 @@ build_libsrt() {
 
 build_libass() {
   do_git_checkout_and_make_install https://github.com/libass/libass.git
+}
+
+build_vulkan() {
+  do_git_checkout https://github.com/KhronosGroup/Vulkan-Headers.git
+  cd Vulkan-Headers_git
+    do_cmake_and_install "-DCMAKE_BUILD_TYPE=Release"
+  cd ..
 }
 
 build_libaribb24() {
@@ -2420,7 +2433,51 @@ build_ffmpeg() {
       init_options+=" --disable-schannel"
       # Fix WinXP incompatibility by disabling Microsoft's Secure Channel, because Windows XP doesn't support TLS 1.1 and 1.2, but with GnuTLS or OpenSSL it does.  XP compat!
     fi
-    config_options="$init_options --enable-libcaca --enable-gray  --enable-fontconfig --enable-gmp --enable-libass --enable-libbluray --enable-libbs2b --enable-libflite --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libilbc --enable-libmodplug --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libwebp --enable-libzimg --enable-libzvbi --enable-libmysofa --enable-libopenjpeg  --enable-libopenh264  --enable-libvmaf --enable-libsrt --enable-libxml2 --enable-opengl --enable-libdav1d --enable-gnutls"
+    config_options="$init_options"
+    config_options+=" --enable-libcaca"
+    config_options+=" --enable-gray"
+    config_options+=" --enable-libtesseract"
+    config_options+=" --enable-fontconfig"
+    config_options+=" --enable-gmp"
+    config_options+=" --enable-libass"
+    config_options+=" --enable-libbluray"
+    config_options+=" --enable-libbs2b"
+    config_options+=" --enable-libflite"
+    config_options+=" --enable-libfreetype"
+    config_options+=" --enable-libfribidi"
+    config_options+=" --enable-libharfbuzz"
+    config_options+=" --enable-filter=drawtext"
+    config_options+=" --enable-libgme"
+    config_options+=" --enable-libgsm"
+    config_options+=" --enable-libilbc"
+    config_options+=" --enable-libmodplug"
+    config_options+=" --enable-libmp3lame"
+    config_options+=" --enable-libopencore-amrnb"
+    config_options+=" --enable-libopencore-amrwb"
+    config_options+=" --enable-libopus"
+    config_options+=" --enable-libsnappy"
+    config_options+=" --enable-libsoxr"
+    config_options+=" --enable-libspeex"
+    config_options+=" --enable-libtheora"
+    config_options+=" --enable-libtwolame"
+    config_options+=" --enable-libvo-amrwbenc"
+    config_options+=" --enable-libvorbis"
+    config_options+=" --enable-libwebp"
+    config_options+=" --enable-libzimg"
+    config_options+=" --enable-libzvbi"
+    config_options+=" --enable-libmysofa"
+    config_options+=" --enable-libopenjpeg"
+    config_options+=" --enable-libopenh264"
+    config_options+=" --enable-libvmaf"
+    config_options+=" --enable-libsrt"
+    config_options+=" --enable-libxml2"
+    config_options+=" --enable-opengl"
+    config_options+=" --enable-libdav1d"
+    config_options+=" --enable-gnutls"
+
+    if [[ $OSTYPE != darwin* ]]; then
+      config_options+=" --enable-vulkan"
+    fi
 
     if [[ "$bits_target" != "32" ]]; then
       if [[ $build_svt_hevc = y ]]; then
@@ -2430,7 +2487,7 @@ build_ffmpeg() {
         if [[ $ffmpeg_git_checkout_version == *"n4.4"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.3"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.2"* ]]; then
           git apply "$work_dir/SVT-HEVC_git/ffmpeg_plugin/n4.4-0001-lavc-svt_hevc-add-libsvt-hevc-encoder-wrapper.patch"
           git apply "$patch_dir/SVT-HEVC-0002-doc-Add-libsvt_hevc-encoder-docs.patch"  # upstream patch does not apply on current ffmpeg master
-        elif [[ $ffmpeg_git_checkout_version == *"n4.1"* ]] || [[ $ffmpeg_git_checkout_version == *"n3.4"* ]] || [[ $ffmpeg_git_checkout_version == *"n3.2"* ]] || [[ $ffmpeg_git_checkout_version == *"n2.8"* ]]; then
+        elif [[ $ffmpeg_git_checkout_version == *"n4.1"* ]] || [[ $ffmpeg_git_checkout_version == *"n3"* ]] || [[ $ffmpeg_git_checkout_version == *"n2"* ]]; then
           : # too old...
         else
           # newer:
@@ -2452,7 +2509,12 @@ build_ffmpeg() {
           # newer:
           git apply "$work_dir/SVT-VP9_git/ffmpeg_plugin/master-0001-Add-ability-for-ffmpeg-to-run-svt-vp9.patch"
         fi
-		config_options+=" --enable-libsvtvp9"
+        config_options+=" --enable-libsvtvp9"
+      fi
+      # SVT-AV1
+      # Apply patch on newer versions
+      if [[ $ffmpeg_git_checkout_version != *"n6"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
+        git apply "$work_dir/SVT-AV1_git/.gitlab/workflows/linux/ffmpeg_n7_fix.patch"
       fi
       config_options+=" --enable-libsvtav1"
     fi # else doesn't work/matter with 32 bit
@@ -2488,7 +2550,7 @@ build_ffmpeg() {
       config_options+=" --disable-libmfx"
     fi
     
-    if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5.1"* ]] && [[ $ffmpeg_git_checkout_version != *"n5.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.4"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.3"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.2"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.1"* ]] && [[ $ffmpeg_git_checkout_version != *"n3.4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3.2"* ]] && [[ $ffmpeg_git_checkout_version != *"n2.8"* ]]; then
+    if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
       # Disable libaribcatption on old versions
       config_options+=" --enable-libaribcaption" # libaribcatption (MIT licensed)
     fi
@@ -2735,11 +2797,12 @@ build_ffmpeg_dependencies() {
 
   build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
   build_libsrt # requires gnutls, mingw-std-threads
-  if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5.1"* ]] && [[ $ffmpeg_git_checkout_version != *"n5.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.4"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.3"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.2"* ]] && [[ $ffmpeg_git_checkout_version != *"n4.1"* ]] && [[ $ffmpeg_git_checkout_version != *"n3.4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3.2"* ]] && [[ $ffmpeg_git_checkout_version != *"n2.8"* ]]; then
+  if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
+    # Disable libaribcatption on old versions
     build_libaribcaption
   fi
   build_libaribb24
-  # build_libtesseract
+  build_libtesseract
   build_lensfun  # requires png, zlib, iconv
   # build_libtensorflow # broken
   build_libvpx
@@ -2747,6 +2810,9 @@ build_ffmpeg_dependencies() {
   build_libopenh264
   build_libaom
   build_dav1d
+  if [[ $OSTYPE != darwin* ]]; then
+    build_vulkan
+  fi
   build_avisynth
   build_libx264 # at bottom as it might internally build a copy of ffmpeg (which needs all the above deps...
  }
