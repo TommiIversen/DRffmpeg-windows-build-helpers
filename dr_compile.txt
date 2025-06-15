@@ -1,5 +1,6 @@
-./cross_compile_ffmpeg.sh --disable-nonfree=n --build-intel-qsv=n
 
+ ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64
+windows WSL detected: you must first disable 'binfmt' by running this
 
 
     if [[ $compiler_flavors != "native" ]]; then
@@ -16,5 +17,5 @@
 
 
 
-# glib-2.6.3.tar.bz2 dødt link - fix med
-download_and_unpack_file https://src.fedoraproject.org/repo/pkgs/glib2/glib-2.64.3.tar.xz/sha512/a3828c37a50e86eb8791be53bd8af848d144e4580841ffab28f3b6eae5144f5cdf4a5d4b43130615b97488e700b274c2468fc7d561b3701a1fc686349501a1db/glib-2.64.3.tar.xz
+git add fftools/ffmpeg.c fftools/ffmpeg_dec.c fftools/ffmpeg.h 
+git diff --staged > my_patch.patch

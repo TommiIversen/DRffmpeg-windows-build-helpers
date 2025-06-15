@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.pyc": "raw",
+        "config.h": "c"
+    },
+    "C_Cpp.codeAnalysis.runOnSave": false
+}

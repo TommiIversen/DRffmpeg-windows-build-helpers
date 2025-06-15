@@ -1,0 +1,81 @@
+diff --git a/fftools/ffmpeg.c b/fftools/ffmpeg.c
+index 6373976b1a..cc64be3580 100644
+--- a/fftools/ffmpeg.c
++++ b/fftools/ffmpeg.c
+@@ -106,7 +106,7 @@
+ 
+ #include "libavutil/avassert.h"
+ 
+-const char program_name[] = "ffmpeg";
++const char program_name[] = "ffmpeg 2mmiLab 190522";
+ const int program_birth_year = 2000;
+ 
+ static FILE *vstats_file;
+@@ -158,6 +158,12 @@ int         nb_output_files   = 0;
+ FilterGraph **filtergraphs;
+ int        nb_filtergraphs;
+ 
++
++static uint64_t total_size_bytes = 0;
++static int slow_delay = 0;
++static int slow = 0;
++
++
+ #if HAVE_TERMIOS_H
+ 
+ /* init terminal so that we can grab keys */
+@@ -1843,6 +1849,11 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
+         av_bprintf(&buf_script, "speed=%4.3gx\n", speed);
+     }
+ 
++    //report to console
++    av_bprintf(&buf, " cursor=%"PRId64, total_size_bytes);
++    av_bprintf(&buf, " slow=%d", slow);
++    
++
+     if (print_stats || is_last_report) {
+         const char end = is_last_report ? '\n' : '\r';
+         if (print_stats==1 && AV_LOG_INFO > av_log_get_level()) {
+@@ -3934,6 +3945,20 @@ static int check_keyboard_interaction(int64_t cur_time)
+                         "s      Show QP histogram\n"
+         );
+     }
++
++    /*slow down sleep */
++    if (key == '1'){
++        slow_delay = 100000;
++        slow = 1;
++        
++    }
++    if (key == '0') {
++        slow_delay = 0;
++        slow = 0;
++        
++    }
++    
++
+     return 0;
+ }
+ 
+@@ -4285,6 +4310,10 @@ static int process_input(int file_index)
+     ist->data_size += pkt->size;
+     ist->nb_packets++;
+ 
++    // size
++    total_size_bytes = total_size_bytes + pkt->size;
++    
++
+     if (ist->discard)
+         goto discard_packet;
+ 
+@@ -4663,6 +4692,9 @@ static int transcode(void)
+             break;
+         }
+ 
++        /*slow down 1 = slow 0 = full speed*/
++        av_usleep(slow_delay);
++
+         /* dump report by using the output first video and audio streams */
+         print_report(0, timer_start, cur_time);
+     }
+

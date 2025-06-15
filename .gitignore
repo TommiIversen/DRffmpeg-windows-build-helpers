@@ -1,9 +1,15 @@
-sandbox/
 output/
 output_*/
 .DS_store
 config.log
-sandbox/
+
+/sandbox/cross_compilers/
+/sandbox/redist/
+/sandbox/win64/** 
+!/sandbox/win64/ffmpeg_git_with_fdk_aac/**
+!/sandbox/win64/ffmpeg_git_with_fdk_aac/
+
+#!sandbox/win64/ffmpeg_git_with_fdk_aac/**
 .vs/
 patches/npp/
 

@@ -2475,6 +2475,12 @@ build_ffmpeg() {
     config_options+=" --enable-libdav1d"
     config_options+=" --enable-gnutls"
 
+    ## Tommi
+    echo "Applying FFmpeg slowpatch"
+    git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu
+    # echo "Applying FFmpeg mxfenc patch"
+    # git apply "$patch_dir/02_mxfenc_patch.patch"  # 
+
     if [[ $OSTYPE != darwin* ]]; then
       config_options+=" --enable-vulkan"
     fi
