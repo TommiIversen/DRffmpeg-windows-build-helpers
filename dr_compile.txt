@@ -1,6 +1,14 @@
 
  ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64
-windows WSL detected: you must first disable 'binfmt' by running this
+
+
+must have:
+
+https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=WSL-Ubuntu&target_version=2.0&target_type=deb_network
+
+
+
+
 
 
     if [[ $compiler_flavors != "native" ]]; then
@@ -15,7 +23,12 @@ windows WSL detected: you must first disable 'binfmt' by running this
 
     fi
 
+## How to make a patch
+cd /home/tomi/DRffmpeg-windows-build-helpers/sandbox/win64/ffmpeg_git_with_fdk_aac/
+git add fftools/ffmpeg.c fftools/ffmpeg_dec.c fftools/ffmpeg.h fftools/ffmpeg_demux.c  
+git diff --staged > slow.patch
 
 
-git add fftools/ffmpeg.c fftools/ffmpeg_dec.c fftools/ffmpeg.h 
-git diff --staged > my_patch.patch
+git reset --hard
+git clean -fd
+

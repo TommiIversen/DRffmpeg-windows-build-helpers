@@ -2529,6 +2529,14 @@ build_ffmpeg() {
 
     if [[ $compiler_flavors != "native" ]]; then
       config_options+=" --enable-nvenc --enable-nvdec" # don't work OS X
+
+
+      config_options+=" --enable-parser=h264 --enable-parser=acc"
+      #config_options+=" --extra-cflags=-I/usr/local/cuda/include/"
+      #config_options+=" --extra-ldflags=-L/usr/local/cuda/lib64"
+      #config_options+=" --extra-cflags=-I$patch_dir/npp/include/"
+      #config_options+=" --extra-ldflags=-L$patch_dir/npp/lib/x64/"
+      #export PATH=/usr/local/cuda/bin:$PATH
     fi
 
     # the order of extra-libs switches is important (appended in reverse)
