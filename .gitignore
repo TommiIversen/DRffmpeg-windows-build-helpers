@@ -5,11 +5,7 @@ config.log
 
 /sandbox/cross_compilers/
 /sandbox/redist/
-/sandbox/win64/** 
-!/sandbox/win64/ffmpeg_git_with_fdk_aac/**
-!/sandbox/win64/ffmpeg_git_with_fdk_aac/
-
-#!sandbox/win64/ffmpeg_git_with_fdk_aac/**
+/sandbox/win64/
 .vs/
 patches/npp/
 
