@@ -1,7 +1,16 @@
 diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
-index 12ef521779..90dfb84d5a 100644
+index 12ef521779..3676a81cc8 100644
 --- a/libavformat/mxfenc.c
 +++ b/libavformat/mxfenc.c
+@@ -73,7 +73,7 @@ EXTERN const FFOutputFormat ff_mxf_opatom_muxer;
+ #define IS_D10(s)    ((s)->oformat == &ff_mxf_d10_muxer.p)
+ #define IS_OPATOM(s) ((s)->oformat == &ff_mxf_opatom_muxer.p)
+ 
+-#define EDIT_UNITS_PER_BODY 250
++#define EDIT_UNITS_PER_BODY 240 // RDD 9 Table B.2: 240 for 25p/50i
+ #define KAG_SIZE 512
+ 
+ typedef struct MXFIndexEntry {
 @@ -487,6 +487,7 @@ typedef struct MXFContext {
      uint32_t tagged_value_count;
      AVRational audio_edit_rate;
@@ -144,6 +153,15 @@ index 12ef521779..90dfb84d5a 100644
      mxf->timecode_track = av_mallocz(sizeof(*mxf->timecode_track));
      if (!mxf->timecode_track)
          return AVERROR(ENOMEM);
+@@ -3415,7 +3421,7 @@ static int mxf_write_packet(AVFormatContext *s, AVPacket *pkt)
+             (!mxf->edit_units_count || mxf->edit_units_count > EDIT_UNITS_PER_BODY) &&
+             !(ie.flags & 0x33)) { // I-frame, GOP start
+             mxf_write_klv_fill(s);
+-            if ((err = mxf_write_partition(s, 1, 2, body_partition_key, 0)) < 0)
++            if ((err = mxf_write_partition(s, 1, 2, body_partition_key, 1)) < 0)
+                 return err;
+             mxf_write_klv_fill(s);
+             err = mxf_write_index_table_segment(s);
 @@ -3463,7 +3469,7 @@ static void mxf_write_random_index_pack(AVFormatContext *s)
      int i;
  
