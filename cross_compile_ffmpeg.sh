@@ -1731,6 +1731,12 @@ build_libdecklink() {
   do_git_checkout $url
   cd decklink-headers_git
     do_make_install PREFIX=$mingw_w64_x86_64_prefix
+    # SDK 15.x includes v14_2_1 compat interfaces in DeckLinkAPI.h but FFmpeg
+    # expects them in a separate header. Create an empty stub to satisfy the include.
+    if [[ ! -f "$mingw_w64_x86_64_prefix/include/DeckLinkAPI_v14_2_1.h" ]]; then
+      printf '#ifndef __DeckLinkAPI_v14_2_1_h__\n#define __DeckLinkAPI_v14_2_1_h__\n// Compat interfaces already defined in DeckLinkAPI.h for SDK >= 15.x\n#endif\n' \
+        > "$mingw_w64_x86_64_prefix/include/DeckLinkAPI_v14_2_1.h"
+    fi
   cd ..
 }
 
@@ -2492,6 +2498,8 @@ build_ffmpeg() {
     git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu
     # echo "Applying FFmpeg mxfenc patch"
     # git apply "$patch_dir/02_mxfenc_patch.patch"  # 
+    echo "Applying vsrc_amf timeapi fix"
+    git apply "$patch_dir/03_vsrc_amf_timeapi.patch"  # mingw missing timeapi.h
 
     if [[ $OSTYPE != darwin* ]]; then
       config_options+=" --enable-vulkan"
@@ -2543,7 +2551,7 @@ build_ffmpeg() {
       config_options+=" --enable-nvenc --enable-nvdec" # don't work OS X
 
 
-      config_options+=" --enable-parser=h264 --enable-parser=acc"
+      config_options+=" --enable-parser=h264 --enable-parser=aac"
       #config_options+=" --extra-cflags=-I/usr/local/cuda/include/"
       #config_options+=" --extra-ldflags=-L/usr/local/cuda/lib64"
       #config_options+=" --extra-cflags=-I$patch_dir/npp/include/"
