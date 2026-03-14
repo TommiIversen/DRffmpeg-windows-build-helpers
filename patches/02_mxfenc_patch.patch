@@ -1,5 +1,5 @@
 diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
-index 12ef521779..d8b4236d70 100644
+index 12ef521779..1aa44f3701 100644
 --- a/libavformat/mxfenc.c
 +++ b/libavformat/mxfenc.c
 @@ -73,7 +73,7 @@ EXTERN const FFOutputFormat ff_mxf_opatom_muxer;
@@ -180,19 +180,6 @@ index 12ef521779..d8b4236d70 100644
  
      if (mxf->edit_unit_byte_count && !IS_OPATOM(s))
          avio_wb32(pb, 1); // BodySID of header partition
-@@ -3499,10 +3505,10 @@ static int mxf_write_footer(AVFormatContext *s)
-     mxf_write_klv_fill(s);
-     mxf->footer_partition_offset = avio_tell(pb);
-     if (mxf->edit_unit_byte_count && !IS_OPATOM(s)) { // no need to repeat index
--        if ((err = mxf_write_partition(s, 0, 0, footer_partition_key, 0)) < 0)
-+        if ((err = mxf_write_partition(s, 0, 0, footer_partition_key, 1)) < 0)
-             return err;
-     } else {
--        if ((err = mxf_write_partition(s, 0, 2, footer_partition_key, 0)) < 0)
-+        if ((err = mxf_write_partition(s, 0, 2, footer_partition_key, 1)) < 0)
-             return err;
-         mxf_write_klv_fill(s);
-         err = mxf_write_index_table_segment(s);
 @@ -3660,6 +3666,8 @@ static const AVOption mxf_options[] = {
      MXF_COMMON_OPTIONS
      { "store_user_comments", "",
