@@ -7,7 +7,7 @@ index b394243f59..3e3bd0eaee 100644
  #include "graph/graphprint.h"
  
 -const char program_name[] = "ffmpeg";
-+const char program_name[] = "ffmpeg 2mmilab " __DATE__;
++const char program_name[] = "ffmpeg 2mmilab " __DATE__ " " __TIME__;
  const int program_birth_year = 2000;
  
 +static uint64_t total_size_bytes = 0;
