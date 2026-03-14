@@ -1,5 +1,5 @@
 diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
-index 12ef521779..63163f118c 100644
+index 12ef521779..d8b4236d70 100644
 --- a/libavformat/mxfenc.c
 +++ b/libavformat/mxfenc.c
 @@ -73,7 +73,7 @@ EXTERN const FFOutputFormat ff_mxf_opatom_muxer;
@@ -28,15 +28,6 @@ index 12ef521779..63163f118c 100644
      int track_instance_count; // used to generate MXFTrack uuids
      int cbr_index;           ///< use a constant bitrate index
      uint8_t unused_tags[MXF_NUM_TAGS];  ///< local tags that we know will not be used
-@@ -523,7 +524,7 @@ static int klv_ber_length(uint64_t len)
-         return (av_log2(len) >> 3) + 2;
- }
- 
--static int klv_encode_ber_length(AVIOContext *pb, uint64_t len)
-+static int klv_encode_ber4_length(AVIOContext *pb, uint64_t len)
- {
-     // Determine the best BER size
-     int size = klv_ber_length(len);
 @@ -676,7 +677,7 @@ static void mxf_write_primer_pack(AVFormatContext *s)
      }
  
@@ -203,15 +194,6 @@ index 12ef521779..63163f118c 100644
          mxf_write_klv_fill(s);
          err = mxf_write_index_table_segment(s);
 @@ -3660,6 +3666,8 @@ static const AVOption mxf_options[] = {
-     MXF_COMMON_OPTIONS
-     { "store_user_comments", "",
-       offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
-+    { "store_user_duration", "",
-+      offsetof(MXFContext, store_user_duration), AV_OPT_TYPE_INT, {.i64 = -1}, -1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM},
-     { NULL },
- };
- 
-@@ -3692,6 +3700,8 @@ static const AVOption opatom_options[] = {
      MXF_COMMON_OPTIONS
      { "store_user_comments", "",
        offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
