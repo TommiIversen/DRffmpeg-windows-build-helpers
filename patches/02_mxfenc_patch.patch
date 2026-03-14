@@ -1,5 +1,5 @@
 diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
-index 12ef521779..3676a81cc8 100644
+index 12ef521779..63163f118c 100644
 --- a/libavformat/mxfenc.c
 +++ b/libavformat/mxfenc.c
 @@ -73,7 +73,7 @@ EXTERN const FFOutputFormat ff_mxf_opatom_muxer;
@@ -11,6 +11,15 @@ index 12ef521779..3676a81cc8 100644
  #define KAG_SIZE 512
  
  typedef struct MXFIndexEntry {
+@@ -288,7 +288,7 @@ static const uint8_t index_table_segment_key[]     = { 0x06,0x0E,0x2B,0x34,0x02,
+ static const uint8_t header_open_partition_key[]   = { 0x06,0x0E,0x2B,0x34,0x02,0x05,0x01,0x01,0x0D,0x01,0x02,0x01,0x01,0x02,0x01,0x00 }; // OpenIncomplete
+ static const uint8_t header_closed_partition_key[] = { 0x06,0x0E,0x2B,0x34,0x02,0x05,0x01,0x01,0x0D,0x01,0x02,0x01,0x01,0x02,0x04,0x00 }; // ClosedComplete
+ static const uint8_t klv_fill_key[]                = { 0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x02,0x03,0x01,0x02,0x10,0x01,0x00,0x00,0x00 };
+-static const uint8_t body_partition_key[]          = { 0x06,0x0E,0x2B,0x34,0x02,0x05,0x01,0x01,0x0D,0x01,0x02,0x01,0x01,0x03,0x04,0x00 }; // ClosedComplete
++static const uint8_t body_partition_key[]          = { 0x06,0x0E,0x2B,0x34,0x02,0x05,0x01,0x01,0x0D,0x01,0x02,0x01,0x01,0x03,0x03,0x00 }; // OpenAndComplete (RDD 9)
+ 
+ static const UID mxf_rgba_descriptor_key      = { 0x06,0x0E,0x2B,0x34,0x02,0x53,0x01,0x01,0x0D,0x01,0x01,0x01,0x01,0x01,0x29,0x00 };
+ 
 @@ -487,6 +487,7 @@ typedef struct MXFContext {
      uint32_t tagged_value_count;
      AVRational audio_edit_rate;
@@ -19,6 +28,15 @@ index 12ef521779..3676a81cc8 100644
      int track_instance_count; // used to generate MXFTrack uuids
      int cbr_index;           ///< use a constant bitrate index
      uint8_t unused_tags[MXF_NUM_TAGS];  ///< local tags that we know will not be used
+@@ -523,7 +524,7 @@ static int klv_ber_length(uint64_t len)
+         return (av_log2(len) >> 3) + 2;
+ }
+ 
+-static int klv_encode_ber_length(AVIOContext *pb, uint64_t len)
++static int klv_encode_ber4_length(AVIOContext *pb, uint64_t len)
+ {
+     // Determine the best BER size
+     int size = klv_ber_length(len);
 @@ -676,7 +677,7 @@ static void mxf_write_primer_pack(AVFormatContext *s)
      }
  
@@ -185,6 +203,15 @@ index 12ef521779..3676a81cc8 100644
          mxf_write_klv_fill(s);
          err = mxf_write_index_table_segment(s);
 @@ -3660,6 +3666,8 @@ static const AVOption mxf_options[] = {
+     MXF_COMMON_OPTIONS
+     { "store_user_comments", "",
+       offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
++    { "store_user_duration", "",
++      offsetof(MXFContext, store_user_duration), AV_OPT_TYPE_INT, {.i64 = -1}, -1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM},
+     { NULL },
+ };
+ 
+@@ -3692,6 +3700,8 @@ static const AVOption opatom_options[] = {
      MXF_COMMON_OPTIONS
      { "store_user_comments", "",
        offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
