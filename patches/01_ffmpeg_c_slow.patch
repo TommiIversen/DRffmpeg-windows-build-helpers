@@ -1,8 +1,8 @@
 diff --git a/fftools/ffmpeg.c b/fftools/ffmpeg.c
-index de607cac93..5a79504bcf 100644
+index b394243f59..3e3bd0eaee 100644
 --- a/fftools/ffmpeg.c
 +++ b/fftools/ffmpeg.c
-@@ -83,9 +83,21 @@
+@@ -86,9 +86,21 @@
  #include "ffmpeg_utils.h"
  #include "graph/graphprint.h"
  
@@ -25,7 +25,7 @@ index de607cac93..5a79504bcf 100644
  FILE *vstats_file;
  
  typedef struct BenchmarkTimeStamps {
-@@ -677,6 +689,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
+@@ -694,6 +706,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
          av_bprintf(&buf_script, "speed=%4.3gx\n", speed);
      }
  
@@ -35,7 +35,7 @@ index de607cac93..5a79504bcf 100644
      secs = (int)t;
      ms = (int)((t - secs) * 1000);
      mins = secs / 60;
-@@ -863,6 +878,17 @@ static int check_keyboard_interaction(int64_t cur_time)
+@@ -878,6 +893,17 @@ static int check_keyboard_interaction(int64_t cur_time)
                          "s      Show QP histogram\n"
          );
      }
@@ -54,10 +54,10 @@ index de607cac93..5a79504bcf 100644
  }
  
 diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h
-index 7868f3d85f..2d5270dbfd 100644
+index b4d3a2c2ac..7c074b4d03 100644
 --- a/fftools/ffmpeg.h
 +++ b/fftools/ffmpeg.h
-@@ -931,4 +931,9 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
+@@ -986,4 +986,9 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
  int muxer_thread(void *arg);
  int encoder_thread(void *arg);
  
@@ -70,7 +70,7 @@ index 7868f3d85f..2d5270dbfd 100644
 +#endif /* FFTOOLS_FFMPEG_H */
 \ No newline at end of file
 diff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c
-index b06455c7b1..083f908caa 100644
+index 5020684a28..1cb6669e75 100644
 --- a/fftools/ffmpeg_dec.c
 +++ b/fftools/ffmpeg_dec.c
 @@ -715,6 +715,11 @@ static int packet_decode(DecoderPriv *dp, AVPacket *pkt, AVFrame *frame)
@@ -86,10 +86,10 @@ index b06455c7b1..083f908caa 100644
          if (!fd)
              return AVERROR(ENOMEM);
 diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
-index 6e01efc420..ed26d6e0ee 100644
+index 7c708ff0f3..8867b0ddae 100644
 --- a/fftools/ffmpeg_demux.c
 +++ b/fftools/ffmpeg_demux.c
-@@ -460,6 +460,11 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
+@@ -468,6 +468,11 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
      FrameData *fd;
      int ret = 0;
  
