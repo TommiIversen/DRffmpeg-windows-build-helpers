@@ -1,5 +1,5 @@
 diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
-index 12ef521779..e5a3df5013 100644
+index 12ef521779..90dfb84d5a 100644
 --- a/libavformat/mxfenc.c
 +++ b/libavformat/mxfenc.c
 @@ -487,6 +487,7 @@ typedef struct MXFContext {
@@ -132,7 +132,19 @@ index 12ef521779..e5a3df5013 100644
  
      mxf_write_local_tag(s, 16, 0x3C0A); // Instance UID
      mxf_write_uuid(pb, EssenceContainerData, 0);
-@@ -3463,7 +3464,7 @@ static void mxf_write_random_index_pack(AVFormatContext *s)
+@@ -3155,6 +3156,11 @@ static int mxf_init(AVFormatContext *s)
+         mxf->timestamp = mxf_parse_timestamp(timestamp);
+     mxf->duration = -1;
+ 
++    if (mxf->store_user_duration) {
++        av_log(s, AV_LOG_ERROR, "user duration: %d\n", mxf->store_user_duration);
++        mxf->duration = mxf->store_user_duration;
++    }
++
+     mxf->timecode_track = av_mallocz(sizeof(*mxf->timecode_track));
+     if (!mxf->timecode_track)
+         return AVERROR(ENOMEM);
+@@ -3463,7 +3469,7 @@ static void mxf_write_random_index_pack(AVFormatContext *s)
      int i;
  
      avio_write(pb, ff_mxf_random_index_pack_key, 16);
@@ -141,7 +153,7 @@ index 12ef521779..e5a3df5013 100644
  
      if (mxf->edit_unit_byte_count && !IS_OPATOM(s))
          avio_wb32(pb, 1); // BodySID of header partition
-@@ -3499,10 +3500,10 @@ static int mxf_write_footer(AVFormatContext *s)
+@@ -3499,10 +3505,10 @@ static int mxf_write_footer(AVFormatContext *s)
      mxf_write_klv_fill(s);
      mxf->footer_partition_offset = avio_tell(pb);
      if (mxf->edit_unit_byte_count && !IS_OPATOM(s)) { // no need to repeat index
@@ -154,3 +166,12 @@ index 12ef521779..e5a3df5013 100644
              return err;
          mxf_write_klv_fill(s);
          err = mxf_write_index_table_segment(s);
+@@ -3660,6 +3666,8 @@ static const AVOption mxf_options[] = {
+     MXF_COMMON_OPTIONS
+     { "store_user_comments", "",
+       offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
++    { "store_user_duration", "",
++      offsetof(MXFContext, store_user_duration), AV_OPT_TYPE_INT, {.i64 = -1}, -1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM},
+     { NULL },
+ };
+ 
