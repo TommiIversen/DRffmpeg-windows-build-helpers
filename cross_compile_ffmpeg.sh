@@ -2496,8 +2496,8 @@ build_ffmpeg() {
     ## Tommi
     echo "Applying FFmpeg slowpatch"
     git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu
-    # echo "Applying FFmpeg mxfenc patch"
-    # git apply "$patch_dir/02_mxfenc_patch.patch"  # 
+    echo "Applying FFmpeg mxfenc patch"
+    git apply "$patch_dir/02_mxfenc_patch.patch"
     echo "Applying vsrc_amf timeapi fix"
     git apply "$patch_dir/03_vsrc_amf_timeapi.patch"  # mingw missing timeapi.h
 
