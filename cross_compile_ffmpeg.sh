@@ -1518,11 +1518,22 @@ build_libbluray() {
         sed -i.bak "/WIN32$/,+4d" src/udfread.c # Fix WinXP incompatibility.
       fi
       if [[ ! -f src/udfread-version.h ]]; then
-        generic_configure # Generate 'udfread-version.h', or building Libbluray fails otherwise.
+        # libudfread switched from autotools to meson, so generate version header manually
+        local udf_version=$(grep "version:" meson.build | head -1 | sed "s/.*version: '\\([^']*\\)'.*/\\1/")
+        local udf_major=$(echo $udf_version | cut -d. -f1)
+        local udf_minor=$(echo $udf_version | cut -d. -f2)
+        local udf_micro=$(echo $udf_version | cut -d. -f3)
+        sed -e "s/@UDFREAD_VERSION_MAJOR@/$udf_major/g" \
+            -e "s/@UDFREAD_VERSION_MINOR@/$udf_minor/g" \
+            -e "s/@UDFREAD_VERSION_MICRO@/$udf_micro/g" \
+            src/udfread-version.h.in > src/udfread-version.h
+        echo "Generated udfread-version.h (version $udf_version)"
       fi
     cd ../..
-    generic_configure "--disable-examples --disable-bdjava-jar"
-    do_make_and_make_install "CPPFLAGS=\"-Ddec_init=libbr_dec_init\""
+    # libbluray switched from autotools to meson
+    export CPPFLAGS="$CPPFLAGS -Ddec_init=libbr_dec_init"
+    generic_meson_ninja_install "-Denable_examples=false -Dbdj_jar=disabled -Denable_tools=false"
+    reset_cppflags
   cd ..
 }
 
@@ -1548,7 +1559,7 @@ build_libflite() {
   # download_and_unpack_file http://www.festvox.org/flite/packed/flite-2.1/flite-2.1-release.tar.bz2
   # original link is not working so using a substitute
   # from a trusted source
-  download_and_unpack_file http://deb.debian.org/debian/pool/main/f/flite/flite_2.1-release.orig.tar.bz2 flite-2.1-release
+  download_and_unpack_file https://archive.debian.org/debian/pool/main/f/flite/flite_2.1-release.orig.tar.bz2 flite-2.1-release
   cd flite-2.1-release
     apply_patch file://$patch_dir/flite-2.1.0_mingw-w64-fixes.patch
     if [[ ! -f main/Makefile.bak ]]; then
@@ -1568,8 +1579,9 @@ build_libsnappy() {
 }
 
 build_vamp_plugin() {
-  download_and_unpack_file https://code.soundsoftware.ac.uk/attachments/download/2691/vamp-plugin-sdk-2.10.0.tar.gz
-  cd vamp-plugin-sdk-2.10.0
+  # original (offline): download_and_unpack_file https://code.soundsoftware.ac.uk/attachments/download/2691/vamp-plugin-sdk-2.10.0.tar.gz
+  download_and_unpack_file https://github.com/vamp-plugins/vamp-plugin-sdk/archive/refs/tags/vamp-plugin-sdk-v2.10.zip vamp-plugin-sdk-vamp-plugin-sdk-v2.10
+  cd vamp-plugin-sdk-vamp-plugin-sdk-v2.10
     apply_patch file://$patch_dir/vamp-plugin-sdk-2.10_static-lib.diff
     if [[ $compiler_flavors != "native" && ! -f src/vamp-sdk/PluginAdapter.cpp.bak ]]; then
       sed -i.bak "s/#include <mutex>/#include <mingw.mutex.h>/" src/vamp-sdk/PluginAdapter.cpp
