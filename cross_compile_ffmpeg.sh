@@ -1524,11 +1524,22 @@ build_libbluray() {
         sed -i.bak "/WIN32$/,+4d" src/udfread.c # Fix WinXP incompatibility.
       fi
       if [[ ! -f src/udfread-version.h ]]; then
-        generic_configure # Generate 'udfread-version.h', or building Libbluray fails otherwise.
+        # libudfread switched from autotools to meson, so generate version header manually
+        local udf_version=$(grep "version:" meson.build | head -1 | sed "s/.*version: '\\([^']*\\)'.*/\\1/")
+        local udf_major=$(echo $udf_version | cut -d. -f1)
+        local udf_minor=$(echo $udf_version | cut -d. -f2)
+        local udf_micro=$(echo $udf_version | cut -d. -f3)
+        sed -e "s/@UDFREAD_VERSION_MAJOR@/$udf_major/g" \
+            -e "s/@UDFREAD_VERSION_MINOR@/$udf_minor/g" \
+            -e "s/@UDFREAD_VERSION_MICRO@/$udf_micro/g" \
+            src/udfread-version.h.in > src/udfread-version.h
+        echo "Generated udfread-version.h (version $udf_version)"
       fi
     cd ../..
-    generic_configure "--disable-examples --disable-bdjava-jar"
-    do_make_and_make_install "CPPFLAGS=\"-Ddec_init=libbr_dec_init\""
+    # libbluray switched from autotools to meson
+    export CPPFLAGS="$CPPFLAGS -Ddec_init=libbr_dec_init"
+    generic_meson_ninja_install "-Denable_examples=false -Dbdj_jar=disabled -Denable_tools=false"
+    reset_cppflags
   cd ..
 }
 
