@@ -2,7 +2,7 @@ diff --git a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 index b394243f59..0000000001 100644
 --- a/fftools/ffmpeg.c
 +++ b/fftools/ffmpeg.c
-@@ -86,9 +86,50 @@
+@@ -86,9 +86,48 @@
  #include "ffmpeg_utils.h"
  #include "graph/graphprint.h"
  
@@ -95,7 +95,7 @@ diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
 index 7c708ff0f3..0000000001 100644
 --- a/fftools/ffmpeg_demux.c
 +++ b/fftools/ffmpeg_demux.c
-@@ -468,6 +468,11 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
+@@ -468,6 +468,15 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
      FrameData *fd;
      int ret = 0;
  
