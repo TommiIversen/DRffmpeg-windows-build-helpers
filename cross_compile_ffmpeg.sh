@@ -2498,10 +2498,8 @@ build_ffmpeg() {
     git reset --hard
     git clean -fx
 
-    echo "Applying FFmpeg slowpatch (0-9 levels)"
+    echo "Applying FFmpeg slowpatch (0-9 levels, -slow N cmdline option)"
     git apply "$patch_dir/01_ffmpeg_c_slow.patch" || { echo "FATAL: slowpatch failed to apply!"; exit 1; }
-    # optional: tilføj -slow N kommandolinje-option (kræver korrekt ffmpeg_opt.c kontekst)
-    git apply -C1 "$patch_dir/01a_ffmpeg_slow_option.patch" 2>/dev/null && echo "Applied -slow cmdline option" || echo "Note: -slow cmdline option patch did not apply (use FFMPEG_SLOW=N env var instead)"
     echo "Applying FFmpeg mxfenc patch"
     git apply "$patch_dir/02_mxfenc_patch.patch" || { echo "FATAL: mxfenc patch failed to apply!"; exit 1; }
     echo "Applying vsrc_amf timeapi fix"

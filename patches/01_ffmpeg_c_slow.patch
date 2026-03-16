@@ -1,5 +1,5 @@
 diff --git a/fftools/ffmpeg.c b/fftools/ffmpeg.c
-index b394243f59..0000000001 100644
+index b394243f59..9b647c7800 100644
 --- a/fftools/ffmpeg.c
 +++ b/fftools/ffmpeg.c
 @@ -86,9 +86,48 @@
@@ -52,7 +52,7 @@ index b394243f59..0000000001 100644
  FILE *vstats_file;
  
  typedef struct BenchmarkTimeStamps {
-@@ -694,6 +735,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
+@@ -694,6 +733,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
          av_bprintf(&buf_script, "speed=%4.3gx\n", speed);
      }
  
@@ -62,7 +62,7 @@ index b394243f59..0000000001 100644
      secs = (int)t;
      ms = (int)((t - secs) * 1000);
      mins = secs / 60;
-@@ -878,6 +922,13 @@ static int check_keyboard_interaction(int64_t cur_time)
+@@ -878,6 +920,13 @@ static int check_keyboard_interaction(int64_t cur_time)
                          "s      Show QP histogram\n"
          );
      }
@@ -77,37 +77,39 @@ index b394243f59..0000000001 100644
  }
  
 diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h
-index b4d3a2c2ac..0000000001 100644
+index 3a19e5878d..7790062519 100644
 --- a/fftools/ffmpeg.h
 +++ b/fftools/ffmpeg.h
-@@ -986,4 +986,9 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
+@@ -988,4 +988,14 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
  int muxer_thread(void *arg);
  int encoder_thread(void *arg);
  
--#endif /* FFTOOLS_FFMPEG_H */
 +
 +extern int slow;
 +int get_slow_delay(void);
 +void ff_set_input_cursor(int64_t pos);
 +
-+#endif /* FFTOOLS_FFMPEG_H */
-diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
-index 7c708ff0f3..0000000001 100644
---- a/fftools/ffmpeg_demux.c
-+++ b/fftools/ffmpeg_demux.c
-@@ -468,6 +468,15 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
-     FrameData *fd;
-     int ret = 0;
++
++extern int slow;
++int get_slow_delay(void);
++void ff_set_input_cursor(int64_t pos);
++
+ #endif /* FFTOOLS_FFMPEG_H */
+diff --git a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
+index 48e6816c19..67b21161eb 100644
+--- a/fftools/ffmpeg_opt.c
++++ b/fftools/ffmpeg_opt.c
+@@ -2200,5 +2200,13 @@ const OptionDef options[] = {
+         "set video sync method globally; deprecated, use -fps_mode", "" },
+ #endif
  
-+    /* slow down: level 1-9, 0 = full speed */
-+    if (slow > 0) {
-+        av_usleep(get_slow_delay());
-+    }
++    { "slow", OPT_TYPE_INT, OPT_EXPERT,
++        { &slow },
++        "set initial slow level 0-9 for growing file support", "level" },
 +
-+    /* track actual file read position for growing-file cursor */
-+    if (d->f.ctx->pb)
-+        ff_set_input_cursor(avio_tell(d->f.ctx->pb));
++    { "slow", OPT_TYPE_INT, OPT_EXPERT,
++        { &slow },
++        "set initial slow level 0-9 for growing file support", "level" },
 +
-     fd = packet_data(pkt);
-     if (!fd)
-         return AVERROR(ENOMEM);
+     { NULL, },
+ };
