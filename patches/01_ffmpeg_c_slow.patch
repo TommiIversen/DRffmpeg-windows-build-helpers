@@ -43,12 +43,10 @@ index b394243f59..0000000001 100644
 +    return 0;
 +}
 +
-+void ff_add_input_bytes(int size)
++void ff_set_input_cursor(int64_t pos)
 +{
-+    if (size > 0)
-+    {
-+        total_size_bytes += size;
-+    }
++    if (pos > 0)
++        total_size_bytes = pos;
 +}
 +
  FILE *vstats_file;
@@ -90,25 +88,9 @@ index b4d3a2c2ac..0000000001 100644
 +
 +extern int slow;
 +int get_slow_delay(void);
-+void ff_add_input_bytes(int size);
++void ff_set_input_cursor(int64_t pos);
 +
 +#endif /* FFTOOLS_FFMPEG_H */
-diff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c
-index 5020684a28..0000000001 100644
---- a/fftools/ffmpeg_dec.c
-+++ b/fftools/ffmpeg_dec.c
-@@ -715,6 +715,11 @@ static int packet_decode(DecoderPriv *dp, AVPacket *pkt, AVFrame *frame)
-     }
- 
-     if (pkt) {
-+
-+        if (pkt->size > 0) {
-+            ff_add_input_bytes(pkt->size);
-+        }
-+
-         FrameData *fd = packet_data(pkt);
-         if (!fd)
-             return AVERROR(ENOMEM);
 diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
 index 7c708ff0f3..0000000001 100644
 --- a/fftools/ffmpeg_demux.c
@@ -121,6 +103,10 @@ index 7c708ff0f3..0000000001 100644
 +    if (slow > 0) {
 +        av_usleep(get_slow_delay());
 +    }
++
++    /* track actual file read position for growing-file cursor */
++    if (d->f.ctx->pb)
++        ff_set_input_cursor(avio_tell(d->f.ctx->pb));
 +
      fd = packet_data(pkt);
      if (!fd)
