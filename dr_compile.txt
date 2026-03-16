@@ -38,15 +38,15 @@ Taster 0-9 under kørsel styrer slow-delay:
 
   Tast  Delay     Beskrivelse
   0     0         Fuld hastighed
-  1     10ms      Meget let
-  2     25ms      Let
-  3     50ms      Moderat
-  4     100ms     Mærkbar (= det gamle "slow 1")
-  5     200ms     Langsom
-  6     400ms     Meget langsom
-  7     700ms     Kravlende
-  8     1s        Næsten stoppet
-  9     2s        Næsten stoppet
+  1     5ms       Meget let
+  2     10ms      Let
+  3     25ms      Moderat let
+  4     50ms      Moderat
+  5     100ms     Mærkbar (= det gamle "slow 1")
+  6     200ms     Langsom
+  7     400ms     Meget langsom
+  8     700ms     Kravlende
+  9     1s        Næsten stoppet
 
 Progress-output på stderr: cursor=<bytes> slow=<level>
 
