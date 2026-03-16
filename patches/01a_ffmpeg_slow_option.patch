@@ -1,7 +1,13 @@
 diff --git a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
 --- a/fftools/ffmpeg_opt.c
 +++ b/fftools/ffmpeg_opt.c
-@@ -280,3 +280,6 @@
+@@ -30,6 +30,8 @@
+ #include "ffmpeg.h"
+ #include "cmdutils.h"
+ 
++extern int slow;
++
+ @@ -280,3 +282,6 @@
  
 +    { "slow",           OPT_TYPE_INT,           OPT_EXPERT,
 +        { &slow },
