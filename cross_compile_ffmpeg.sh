@@ -2494,6 +2494,10 @@ build_ffmpeg() {
     config_options+=" --enable-gnutls"
 
     ## Tommi
+    echo "Resetting ffmpeg source tree before applying patches..."
+    git reset --hard
+    git clean -fx
+
     echo "Applying FFmpeg slowpatch (0-9 levels)"
     git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu med 0-9 graduated levels
     # optional: tilføj -slow N kommandolinje-option (kræver korrekt ffmpeg_opt.c kontekst)
