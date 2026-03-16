@@ -89,12 +89,27 @@ index 3a19e5878d..7790062519 100644
 +int get_slow_delay(void);
 +void ff_set_input_cursor(int64_t pos);
 +
-+
-+extern int slow;
-+int get_slow_delay(void);
-+void ff_set_input_cursor(int64_t pos);
-+
  #endif /* FFTOOLS_FFMPEG_H */
+diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
+index 7c708ff0f3..0000000001 100644
+--- a/fftools/ffmpeg_demux.c
++++ b/fftools/ffmpeg_demux.c
+@@ -468,6 +468,14 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
+     FrameData *fd;
+     int ret = 0;
+ 
++    /* slow down: level 1-9, 0 = full speed */
++    if (slow > 0) {
++        av_usleep(get_slow_delay());
++    }
++
++    /* track actual file read position for growing-file cursor */
++    if (d->f.ctx->pb)
++        ff_set_input_cursor(avio_tell(d->f.ctx->pb));
++
+     fd = packet_data(pkt);
+     if (!fd)
+         return AVERROR(ENOMEM);
 diff --git a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
 index 48e6816c19..67b21161eb 100644
 --- a/fftools/ffmpeg_opt.c
@@ -103,10 +118,6 @@ index 48e6816c19..67b21161eb 100644
          "set video sync method globally; deprecated, use -fps_mode", "" },
  #endif
  
-+    { "slow", OPT_TYPE_INT, OPT_EXPERT,
-+        { &slow },
-+        "set initial slow level 0-9 for growing file support", "level" },
-+
 +    { "slow", OPT_TYPE_INT, OPT_EXPERT,
 +        { &slow },
 +        "set initial slow level 0-9 for growing file support", "level" },
