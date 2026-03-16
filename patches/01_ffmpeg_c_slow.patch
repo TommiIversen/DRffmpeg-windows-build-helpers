@@ -77,10 +77,10 @@ index b394243f59..9b647c7800 100644
  }
  
 diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h
-index 3a19e5878d..7790062519 100644
+index 3a19e5878d..dd51696953 100644
 --- a/fftools/ffmpeg.h
 +++ b/fftools/ffmpeg.h
-@@ -988,4 +988,14 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
+@@ -988,4 +988,9 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
  int muxer_thread(void *arg);
  int encoder_thread(void *arg);
  
@@ -91,13 +91,14 @@ index 3a19e5878d..7790062519 100644
 +
  #endif /* FFTOOLS_FFMPEG_H */
 diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
-index 7c708ff0f3..0000000001 100644
+index c317987841..53c510107a 100644
 --- a/fftools/ffmpeg_demux.c
 +++ b/fftools/ffmpeg_demux.c
-@@ -468,6 +468,14 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
+@@ -471,6 +471,15 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
      FrameData *fd;
      int ret = 0;
  
++
 +    /* slow down: level 1-9, 0 = full speed */
 +    if (slow > 0) {
 +        av_usleep(get_slow_delay());
@@ -106,15 +107,14 @@ index 7c708ff0f3..0000000001 100644
 +    /* track actual file read position for growing-file cursor */
 +    if (d->f.ctx->pb)
 +        ff_set_input_cursor(avio_tell(d->f.ctx->pb));
-+
      fd = packet_data(pkt);
      if (!fd)
          return AVERROR(ENOMEM);
 diff --git a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
-index 48e6816c19..67b21161eb 100644
+index 48e6816c19..68c8ce22d3 100644
 --- a/fftools/ffmpeg_opt.c
 +++ b/fftools/ffmpeg_opt.c
-@@ -2200,5 +2200,13 @@ const OptionDef options[] = {
+@@ -2200,5 +2200,9 @@ const OptionDef options[] = {
          "set video sync method globally; deprecated, use -fps_mode", "" },
  #endif
  
