@@ -1,8 +1,8 @@
 diff --git a/fftools/ffmpeg.c b/fftools/ffmpeg.c
-index b394243f59..3e3bd0eaee 100644
+index b394243f59..0000000001 100644
 --- a/fftools/ffmpeg.c
 +++ b/fftools/ffmpeg.c
-@@ -86,9 +86,21 @@
+@@ -86,9 +86,50 @@
  #include "ffmpeg_utils.h"
  #include "graph/graphprint.h"
  
@@ -11,8 +11,37 @@ index b394243f59..3e3bd0eaee 100644
  const int program_birth_year = 2000;
  
 +static uint64_t total_size_bytes = 0;
-+int slow_delay = 0;
 +int slow = 0;
++
++static const int slow_delays[] = {
++    0,       /* 0: full speed   */
++    10000,   /* 1: 10ms         */
++    25000,   /* 2: 25ms         */
++    50000,   /* 3: 50ms         */
++    100000,  /* 4: 100ms        */
++    200000,  /* 5: 200ms        */
++    400000,  /* 6: 400ms        */
++    700000,  /* 7: 700ms        */
++    1000000, /* 8: 1s           */
++    2000000  /* 9: 2s           */
++};
++
++int get_slow_delay(void)
++{
++    static int env_checked = 0;
++    if (!env_checked) {
++        const char *env = getenv("FFMPEG_SLOW");
++        if (env) {
++            int level = atoi(env);
++            if (level >= 0 && level <= 9)
++                slow = level;
++        }
++        env_checked = 1;
++    }
++    if (slow >= 0 && slow <= 9)
++        return slow_delays[slow];
++    return 0;
++}
 +
 +void ff_add_input_bytes(int size)
 +{
@@ -25,7 +54,7 @@ index b394243f59..3e3bd0eaee 100644
  FILE *vstats_file;
  
  typedef struct BenchmarkTimeStamps {
-@@ -694,6 +706,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
+@@ -694,6 +735,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
          av_bprintf(&buf_script, "speed=%4.3gx\n", speed);
      }
  
@@ -35,26 +64,22 @@ index b394243f59..3e3bd0eaee 100644
      secs = (int)t;
      ms = (int)((t - secs) * 1000);
      mins = secs / 60;
-@@ -878,6 +893,17 @@ static int check_keyboard_interaction(int64_t cur_time)
+@@ -878,6 +922,13 @@ static int check_keyboard_interaction(int64_t cur_time)
                          "s      Show QP histogram\n"
          );
      }
 +
-+    /*slow down sleep */
-+    if (key == '1'){
-+        slow_delay = 100000;
-+        slow = 1;
-+    }
-+    if (key == '0') {
-+        slow_delay = 0;
-+        slow = 0;
++    /* slow level 0-9 */
++    if (key >= '0' && key <= '9') {
++        slow = key - '0';
++        av_log(NULL, AV_LOG_INFO, "\nslow level set to %d (delay: %d us)\n", slow, get_slow_delay());
 +    }
 +
      return 0;
  }
  
 diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h
-index b4d3a2c2ac..7c074b4d03 100644
+index b4d3a2c2ac..0000000001 100644
 --- a/fftools/ffmpeg.h
 +++ b/fftools/ffmpeg.h
 @@ -986,4 +986,9 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
@@ -63,14 +88,13 @@ index b4d3a2c2ac..7c074b4d03 100644
  
 -#endif /* FFTOOLS_FFMPEG_H */
 +
-+extern int slow_delay;
 +extern int slow;
++int get_slow_delay(void);
 +void ff_add_input_bytes(int size);
 +
 +#endif /* FFTOOLS_FFMPEG_H */
-\ No newline at end of file
 diff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c
-index 5020684a28..1cb6669e75 100644
+index 5020684a28..0000000001 100644
 --- a/fftools/ffmpeg_dec.c
 +++ b/fftools/ffmpeg_dec.c
 @@ -715,6 +715,11 @@ static int packet_decode(DecoderPriv *dp, AVPacket *pkt, AVFrame *frame)
@@ -78,24 +102,24 @@ index 5020684a28..1cb6669e75 100644
  
      if (pkt) {
 +
-+        if (pkt->size > 0) { // Ensure we only add positive sizes
-+            ff_add_input_bytes(pkt->size); // Call the function from ffmpeg.c
++        if (pkt->size > 0) {
++            ff_add_input_bytes(pkt->size);
 +        }
 +
          FrameData *fd = packet_data(pkt);
          if (!fd)
              return AVERROR(ENOMEM);
 diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
-index 7c708ff0f3..8867b0ddae 100644
+index 7c708ff0f3..0000000001 100644
 --- a/fftools/ffmpeg_demux.c
 +++ b/fftools/ffmpeg_demux.c
 @@ -468,6 +468,11 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
      FrameData *fd;
      int ret = 0;
  
-+    /*slow down 1 = slow 0 = full speed*/
-+    if (slow_delay > 0) {
-+        av_usleep(slow_delay);
++    /* slow down: level 1-9, 0 = full speed */
++    if (slow > 0) {
++        av_usleep(get_slow_delay());
 +    }
 +
      fd = packet_data(pkt);

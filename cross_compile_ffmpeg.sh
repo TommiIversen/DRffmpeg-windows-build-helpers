@@ -2494,8 +2494,10 @@ build_ffmpeg() {
     config_options+=" --enable-gnutls"
 
     ## Tommi
-    echo "Applying FFmpeg slowpatch"
-    git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu
+    echo "Applying FFmpeg slowpatch (0-9 levels)"
+    git apply "$patch_dir/01_ffmpeg_c_slow.patch"  # slowpatch til liveu med 0-9 graduated levels
+    # optional: tilføj -slow N kommandolinje-option (kræver korrekt ffmpeg_opt.c kontekst)
+    git apply -C1 "$patch_dir/01a_ffmpeg_slow_option.patch" 2>/dev/null && echo "Applied -slow cmdline option" || echo "Note: -slow cmdline option patch did not apply (use FFMPEG_SLOW=N env var instead)"
     echo "Applying FFmpeg mxfenc patch"
     git apply "$patch_dir/02_mxfenc_patch.patch"
     echo "Applying vsrc_amf timeapi fix"

@@ -32,3 +32,43 @@ git diff --staged > slow.patch
 git reset --hard
 git clean -fd
 
+
+## Slow patch - graduerede niveauer (0-9)
+Taster 0-9 under kørsel styrer slow-delay:
+
+  Tast  Delay     Beskrivelse
+  0     0         Fuld hastighed
+  1     10ms      Meget let
+  2     25ms      Let
+  3     50ms      Moderat
+  4     100ms     Mærkbar (= det gamle "slow 1")
+  5     200ms     Langsom
+  6     400ms     Meget langsom
+  7     700ms     Kravlende
+  8     1s        Næsten stoppet
+  9     2s        Næsten stoppet
+
+Progress-output på stderr: cursor=<bytes> slow=<level>
+
+### Start med initialt slow level
+Via miljøvariabel:
+  FFMPEG_SLOW=6 ffmpeg -i growing_file.ts -c copy output.mp4
+
+### Python-workflow eksempel
+  import subprocess, os
+
+  env = os.environ.copy()
+  env['FFMPEG_SLOW'] = '6'  # start langsomt
+  proc = subprocess.Popen(
+      ['ffmpeg', '-i', 'growing.ts', '-c', 'copy', 'out.mp4'],
+      env=env, stdin=subprocess.PIPE, stderr=subprocess.PIPE
+  )
+
+  # Speed op via stdin:
+  proc.stdin.write(b'0')   # fuld hastighed
+  proc.stdin.flush()
+
+  # Graduer ned:
+  proc.stdin.write(b'3')   # moderat bremsning
+  proc.stdin.flush()
+
