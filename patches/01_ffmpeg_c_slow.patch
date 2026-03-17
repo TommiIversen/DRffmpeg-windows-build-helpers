@@ -91,7 +91,7 @@ index 3a19e5878d..dd51696953 100644
 +
  #endif /* FFTOOLS_FFMPEG_H */
 diff --git a/fftools/ffmpeg_demux.c b/fftools/ffmpeg_demux.c
-index c317987841..53c510107a 100644
+index c317987841..5f07574930 100644
 --- a/fftools/ffmpeg_demux.c
 +++ b/fftools/ffmpeg_demux.c
 @@ -471,6 +471,15 @@ static int input_packet_process(Demuxer *d, AVPacket *pkt, unsigned *send_flags)
@@ -104,9 +104,9 @@ index c317987841..53c510107a 100644
 +        av_usleep(get_slow_delay());
 +    }
 +
-+    /* track actual file read position for growing-file cursor */
-+    if (d->f.ctx->pb)
-+        ff_set_input_cursor(avio_tell(d->f.ctx->pb));
++    /* track file read position via packet pos */
++    if (pkt->pos >= 0)
++        ff_set_input_cursor(pkt->pos + pkt->size);
      fd = packet_data(pkt);
      if (!fd)
          return AVERROR(ENOMEM);
