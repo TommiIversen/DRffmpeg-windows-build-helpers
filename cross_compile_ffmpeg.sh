@@ -1764,8 +1764,8 @@ build_fribidi() {
 
 build_libsrt() {
   # do_git_checkout https://github.com/Haivision/srt.git # might be able to use these days...?
-  download_and_unpack_file https://github.com/Haivision/srt/archive/v1.4.1.tar.gz srt-1.4.1
-  cd srt-1.4.1
+  download_and_unpack_file https://github.com/Haivision/srt/archive/v1.5.4.tar.gz srt-1.5.4
+  cd srt-1.5.4
     if [[ $compiler_flavors != "native" ]]; then
       apply_patch file://$patch_dir/srt.app.patch -p1
     fi
@@ -2497,6 +2497,8 @@ build_ffmpeg() {
     echo "Resetting ffmpeg source tree before applying patches..."
     git reset --hard
     git clean -fx
+    # clean compiled objects so patched files get recompiled by make
+    make distclean 2>/dev/null || true
 
     echo "Applying FFmpeg slowpatch (0-9 levels, -slow N cmdline option)"
     git apply "$patch_dir/01_ffmpeg_c_slow.patch" || { echo "FATAL: slowpatch failed to apply!"; exit 1; }
