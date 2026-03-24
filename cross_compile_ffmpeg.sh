@@ -344,7 +344,7 @@ install_cross_compiler() {
 
     # --disable-shared allows c++ to be distributed at all...which seemed necessary for some random dependency which happens to use/require c++...
     local zeranoe_script_name=mingw-w64-build-r22.local
-    local zeranoe_script_options="--gcc-ver=10.2.0 --mingw-w64-ver=9.0.0 --default-configure --cpu-count=$gcc_cpu_count --disable-shared --clean-build --verbose --allow-overwrite --threads=winpthreads" # allow-overwrite to avoid some crufty prompts if I do rebuilds [or maybe should just nuke everything...]
+    local zeranoe_script_options="--gcc-ver=13.2.0 --mingw-w64-ver=11.0.1 --default-configure --cpu-count=$gcc_cpu_count --disable-shared --clean-build --verbose --allow-overwrite --threads=winpthreads" # allow-overwrite to avoid some crufty prompts if I do rebuilds [or maybe should just nuke everything...]
     if [[ ($compiler_flavors == "win32" || $compiler_flavors == "multi") && ! -f ../$win32_gcc ]]; then
       echo "Building win32 cross compiler..."
       download_gcc_build_script $zeranoe_script_name
@@ -967,11 +967,10 @@ build_lensfun() {
 build_libtesseract() {
   build_libtiff # no disable configure option for this in tesseract? odd...
   build_libleptonica
-  do_git_checkout https://github.com/tesseract-ocr/tesseract.git tesseract_git 4.1.1
+  do_git_checkout https://github.com/tesseract-ocr/tesseract.git tesseract_git 5.3.4
   cd tesseract_git
     sed -i.bak 's/libcurl/libbcurl_disabled/g' configure.ac # --disable-curl hard disable, sometimes it's here but they link it wrong so punt...
     if [[ $compiler_flavors != "native"  ]]; then
-      apply_patch file://$patch_dir/tesseract-4.1.1_mingw-std-threads.patch
       generic_configure "--disable-openmp"
       do_make_and_make_install
       sed -i.bak 's/-ltesseract.*$/-ltesseract -lstdc++ -lws2_32 -llept -ltiff -llzma -ljpeg -lz/' $PKG_CONFIG_PATH/tesseract.pc # why does it needs winsock? LOL plus all of libtiff's <sigh>
