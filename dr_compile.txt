@@ -1,6 +1,5 @@
 
- ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64
-
+./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64 --build-intel-qsv=n
 
 must have:
 
