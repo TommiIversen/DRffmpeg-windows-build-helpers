@@ -2413,6 +2413,13 @@ build_ffmpeg() {
 
   # allow using local source directory version of ffmpeg
   if [[ -z $ffmpeg_source_dir ]]; then
+    # Reset any previously applied patches so do_git_checkout can merge cleanly
+    if [[ -d $output_dir ]]; then
+      cd $output_dir
+      git reset --hard
+      git clean -fx
+      cd ..
+    fi
     do_git_checkout $ffmpeg_git_checkout $output_dir $ffmpeg_git_checkout_version || exit 1
   else
     output_dir="${ffmpeg_source_dir}"
