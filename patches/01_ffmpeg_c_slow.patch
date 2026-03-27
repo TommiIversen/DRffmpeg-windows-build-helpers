@@ -2,7 +2,7 @@ diff --git a/fftools/ffmpeg.c b/fftools/ffmpeg.c
 index b394243f59..9b647c7800 100644
 --- a/fftools/ffmpeg.c
 +++ b/fftools/ffmpeg.c
-@@ -86,9 +86,48 @@
+@@ -86,9 +86,50 @@
  #include "ffmpeg_utils.h"
  #include "graph/graphprint.h"
  
@@ -12,6 +12,8 @@ index b394243f59..9b647c7800 100644
  
 +static uint64_t total_size_bytes = 0;
 +int slow = 0;
++int slow_target = 0;
++static int slow_armed = 0;
 +
 +static const int slow_delays[] = {
 +    0,       /* 0: full speed   */
@@ -34,7 +36,7 @@ index b394243f59..9b647c7800 100644
 +        if (env) {
 +            int level = atoi(env);
 +            if (level >= 0 && level <= 9)
-+                slow = level;
++                slow_target = level;
 +        }
 +        env_checked = 1;
 +    }
@@ -52,17 +54,24 @@ index b394243f59..9b647c7800 100644
  FILE *vstats_file;
  
  typedef struct BenchmarkTimeStamps {
-@@ -694,6 +733,9 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
+@@ -694,6 +735,16 @@ static void print_report(int is_last_report, int64_t timer_start, int64_t cur_ti
          av_bprintf(&buf_script, "speed=%4.3gx\n", speed);
      }
  
++    /* activate slow after first progress report (startup phase is over) */
++    if (!slow_armed && slow_target > 0) {
++        slow = slow_target;
++        slow_armed = 1;
++        av_log(NULL, AV_LOG_INFO, "\nslow level activated: %d (delay: %d us)\n", slow, get_slow_delay());
++    }
++
 +    av_bprintf(&buf, " cursor=%" PRId64, total_size_bytes);
 +    av_bprintf(&buf, " slow=%d", slow);
 +
      secs = (int)t;
      ms = (int)((t - secs) * 1000);
      mins = secs / 60;
-@@ -878,6 +920,13 @@ static int check_keyboard_interaction(int64_t cur_time)
+@@ -878,6 +929,13 @@ static int check_keyboard_interaction(int64_t cur_time)
                          "s      Show QP histogram\n"
          );
      }
@@ -80,12 +89,13 @@ diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h
 index 3a19e5878d..dd51696953 100644
 --- a/fftools/ffmpeg.h
 +++ b/fftools/ffmpeg.h
-@@ -988,4 +988,9 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
+@@ -988,4 +988,10 @@ int view_specifier_parse(const char **pspec, ViewSpecifier *vs);
  int muxer_thread(void *arg);
  int encoder_thread(void *arg);
  
 +
 +extern int slow;
++extern int slow_target;
 +int get_slow_delay(void);
 +void ff_set_input_cursor(int64_t pos);
 +
@@ -119,7 +129,7 @@ index 48e6816c19..68c8ce22d3 100644
  #endif
  
 +    { "slow", OPT_TYPE_INT, OPT_EXPERT,
-+        { &slow },
++        { &slow_target },
 +        "set initial slow level 0-9 for growing file support", "level" },
 +
      { NULL, },
