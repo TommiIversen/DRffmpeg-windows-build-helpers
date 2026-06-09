@@ -1,8 +1,7 @@
 diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
-index 12ef521779..87378303cb 100644
 --- a/libavformat/mxfenc.c
 +++ b/libavformat/mxfenc.c
-@@ -73,7 +73,7 @@ EXTERN const FFOutputFormat ff_mxf_opatom_muxer;
+@@ -74,7 +74,7 @@
  #define IS_D10(s)    ((s)->oformat == &ff_mxf_d10_muxer.p)
  #define IS_OPATOM(s) ((s)->oformat == &ff_mxf_opatom_muxer.p)
  
@@ -11,7 +10,7 @@ index 12ef521779..87378303cb 100644
  #define KAG_SIZE 512
  
  typedef struct MXFIndexEntry {
-@@ -288,7 +288,7 @@ static const uint8_t index_table_segment_key[]     = { 0x06,0x0E,0x2B,0x34,0x02,
+@@ -289,7 +289,7 @@
  static const uint8_t header_open_partition_key[]   = { 0x06,0x0E,0x2B,0x34,0x02,0x05,0x01,0x01,0x0D,0x01,0x02,0x01,0x01,0x02,0x01,0x00 }; // OpenIncomplete
  static const uint8_t header_closed_partition_key[] = { 0x06,0x0E,0x2B,0x34,0x02,0x05,0x01,0x01,0x0D,0x01,0x02,0x01,0x01,0x02,0x04,0x00 }; // ClosedComplete
  static const uint8_t klv_fill_key[]                = { 0x06,0x0E,0x2B,0x34,0x01,0x01,0x01,0x02,0x03,0x01,0x02,0x10,0x01,0x00,0x00,0x00 };
@@ -20,15 +19,16 @@ index 12ef521779..87378303cb 100644
  
  static const UID mxf_rgba_descriptor_key      = { 0x06,0x0E,0x2B,0x34,0x02,0x53,0x01,0x01,0x0D,0x01,0x01,0x01,0x01,0x01,0x29,0x00 };
  
-@@ -487,6 +487,7 @@ typedef struct MXFContext {
+@@ -488,6 +488,8 @@
      uint32_t tagged_value_count;
      AVRational audio_edit_rate;
      int store_user_comments;
 +    int store_user_duration;
++    int mxf_wallclock_tc;
      int track_instance_count; // used to generate MXFTrack uuids
      int cbr_index;           ///< use a constant bitrate index
      uint8_t unused_tags[MXF_NUM_TAGS];  ///< local tags that we know will not be used
-@@ -676,7 +677,7 @@ static void mxf_write_primer_pack(AVFormatContext *s)
+@@ -677,7 +679,7 @@
      }
  
      avio_write(pb, primer_pack_key, 16);
@@ -37,7 +37,7 @@ index 12ef521779..87378303cb 100644
  
      avio_wb32(pb, local_tag_number); // local_tag num
      avio_wb32(pb, 18); // item size, always 18 according to the specs
-@@ -751,7 +752,7 @@ static void mxf_write_preface(AVFormatContext *s)
+@@ -752,7 +754,7 @@
  
      mxf_write_metadata_key(pb, 0x012f00);
      PRINT_KEY(s, "preface key", pb->buf_ptr - 16);
@@ -46,7 +46,7 @@ index 12ef521779..87378303cb 100644
  
      // write preface set uid
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -893,7 +894,7 @@ static void mxf_write_identification(AVFormatContext *s)
+@@ -894,7 +896,7 @@
                    mxf_utf16_local_tag_length(product) +
                    mxf_utf16_local_tag_length(platform) +
                    mxf_utf16_local_tag_length(version);
@@ -55,7 +55,7 @@ index 12ef521779..87378303cb 100644
  
      // write uid
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -931,7 +932,7 @@ static void mxf_write_content_storage(AVFormatContext *s, MXFPackage *packages,
+@@ -932,7 +934,7 @@
  
      mxf_write_metadata_key(pb, 0x011800);
      PRINT_KEY(s, "content storage key", pb->buf_ptr - 16);
@@ -64,7 +64,7 @@ index 12ef521779..87378303cb 100644
  
      // write uid
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -959,7 +960,7 @@ static void mxf_write_track(AVFormatContext *s, AVStream *st, MXFPackage *packag
+@@ -960,7 +962,7 @@
  
      mxf_write_metadata_key(pb, 0x013b00);
      PRINT_KEY(s, "track key", pb->buf_ptr - 16);
@@ -73,7 +73,7 @@ index 12ef521779..87378303cb 100644
  
      // write track uid
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -1033,7 +1034,7 @@ static void mxf_write_sequence(AVFormatContext *s, AVStream *st, MXFPackage *pac
+@@ -1034,7 +1036,7 @@
  
      mxf_write_metadata_key(pb, 0x010f00);
      PRINT_KEY(s, "sequence key", pb->buf_ptr - 16);
@@ -82,7 +82,7 @@ index 12ef521779..87378303cb 100644
  
      mxf_write_local_tag(s, 16, 0x3C0A);
      mxf_write_uuid(pb, Sequence, mxf->track_instance_count);
-@@ -1058,7 +1059,7 @@ static void mxf_write_timecode_component(AVFormatContext *s, AVStream *st, MXFPa
+@@ -1059,7 +1061,7 @@
      AVIOContext *pb = s->pb;
  
      mxf_write_metadata_key(pb, 0x011400);
@@ -91,7 +91,7 @@ index 12ef521779..87378303cb 100644
  
      // UID
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -1086,7 +1087,7 @@ static void mxf_write_structural_component(AVFormatContext *s, AVStream *st, MXF
+@@ -1087,7 +1089,7 @@
  
      mxf_write_metadata_key(pb, 0x011100);
      PRINT_KEY(s, "structural component key", pb->buf_ptr - 16);
@@ -100,7 +100,7 @@ index 12ef521779..87378303cb 100644
  
      // write uid
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -1120,7 +1121,7 @@ static void mxf_write_tape_descriptor(AVFormatContext *s)
+@@ -1121,7 +1123,7 @@
  
      mxf_write_metadata_key(pb, 0x012e00);
      PRINT_KEY(s, "tape descriptor key", pb->buf_ptr - 16);
@@ -109,7 +109,7 @@ index 12ef521779..87378303cb 100644
      mxf_write_local_tag(s, 16, 0x3C0A);
      mxf_write_uuid(pb, TapeDescriptor, 0);
      PRINT_KEY(s, "tape_desc uid", pb->buf_ptr - 16);
-@@ -1136,7 +1137,7 @@ static void mxf_write_multi_descriptor(AVFormatContext *s)
+@@ -1137,7 +1139,7 @@
  
      mxf_write_metadata_key(pb, 0x014400);
      PRINT_KEY(s, "multiple descriptor key", pb->buf_ptr - 16);
@@ -118,7 +118,7 @@ index 12ef521779..87378303cb 100644
  
      mxf_write_local_tag(s, 16, 0x3C0A);
      mxf_write_uuid(pb, MultipleDescriptor, 0);
-@@ -1781,7 +1782,7 @@ static int mxf_write_tagged_value(AVFormatContext *s, const char* name, const ch
+@@ -1783,7 +1785,7 @@
          return 1;
  
      mxf_write_metadata_key(pb, 0x013f00);
@@ -127,7 +127,7 @@ index 12ef521779..87378303cb 100644
  
      // write instance UID
      mxf_write_local_tag(s, 16, 0x3C0A);
-@@ -1830,11 +1831,11 @@ static int mxf_write_package(AVFormatContext *s, MXFPackage *package)
+@@ -1832,11 +1834,11 @@
              user_comment_count = mxf_write_user_comments(s, s->metadata);
          mxf_write_metadata_key(pb, 0x013600);
          PRINT_KEY(s, "Material Package key", pb->buf_ptr - 16);
@@ -141,7 +141,7 @@ index 12ef521779..87378303cb 100644
      }
  
      // write uid
-@@ -1926,7 +1927,7 @@ static int mxf_write_essence_container_data(AVFormatContext *s)
+@@ -1928,7 +1930,7 @@
      AVIOContext *pb = s->pb;
  
      mxf_write_metadata_key(pb, 0x012300);
@@ -150,7 +150,40 @@ index 12ef521779..87378303cb 100644
  
      mxf_write_local_tag(s, 16, 0x3C0A); // Instance UID
      mxf_write_uuid(pb, EssenceContainerData, 0);
-@@ -3155,6 +3156,11 @@ static int mxf_init(AVFormatContext *s)
+@@ -2891,6 +2893,7 @@
+ {
+     MXFContext *mxf = s->priv_data;
+     AVDictionaryEntry *tcr = av_dict_get(s->metadata, "timecode", NULL, 0);
++    AVRational rate = av_inv_q(tbc);
+ 
+     if (!ff_mxf_get_content_package_rate(tbc)) {
+         if (s->strict_std_compliance > FF_COMPLIANCE_UNOFFICIAL) {
+@@ -2902,13 +2905,22 @@
+     }
+ 
+     mxf->timecode_base = (tbc.den + tbc.num/2) / tbc.num;
++    if (mxf->mxf_wallclock_tc) {
++        // Defer the real start timecode to the first frame's PTS (handled in
++        // mxf_write_packet). The PTS reflects the actual capture instant and is
++        // immune to DeckLink/filter/encoder/segment buffering, unlike the wall
++        // clock sampled at file-open time. Initialise rate and drop-frame flags
++        // here so the first packet only needs to fill in the start value.
++        int flags = rate.den == 1001 && rate.num % 30000 == 0 ? AV_TIMECODE_FLAG_DROPFRAME : 0;
++        return av_timecode_init(&mxf->tc, rate, flags, 0, s);
++    }
+     if (!tcr)
+         tcr = av_dict_get(st->metadata, "timecode", NULL, 0);
+ 
+     if (tcr)
+-        return av_timecode_init_from_string(&mxf->tc, av_inv_q(tbc), tcr->value, s);
++        return av_timecode_init_from_string(&mxf->tc, rate, tcr->value, s);
+     else
+-        return av_timecode_init(&mxf->tc, av_inv_q(tbc), 0, 0, s);
++        return av_timecode_init(&mxf->tc, rate, 0, 0, s);
+ }
+ 
+ static enum AVChromaLocation choose_chroma_location(AVFormatContext *s, AVStream *st)
+@@ -3157,6 +3169,11 @@
          mxf->timestamp = mxf_parse_timestamp(timestamp);
      mxf->duration = -1;
  
@@ -162,7 +195,37 @@ index 12ef521779..87378303cb 100644
      mxf->timecode_track = av_mallocz(sizeof(*mxf->timecode_track));
      if (!mxf->timecode_track)
          return AVERROR(ENOMEM);
-@@ -3463,7 +3469,7 @@ static void mxf_write_random_index_pack(AVFormatContext *s)
+@@ -3398,6 +3415,29 @@
+         return mxf_write_opatom_packet(s, pkt, &ie);
+ 
+     if (!mxf->header_written) {
++        if (mxf->mxf_wallclock_tc && pkt->stream_index == 0 &&
++            pkt->pts != AV_NOPTS_VALUE) {
++            // Use the capture time carried by the first frame's PTS as the start
++            // timecode (use DeckLink video_pts=abs_wallclock / audio_pts=abs_wallclock
++            // together with -copyts). It is sampled at the frame, not at file open,
++            // so it does not drift by the pipeline/encoder buffer depth.
++            int64_t now_us = av_rescale_q(pkt->pts, st->time_base, AV_TIME_BASE_Q);
++            time_t now_sec = now_us / AV_TIME_BASE;
++            int64_t remainder_us = now_us % AV_TIME_BASE;
++            struct tm tmbuf;
++            struct tm *ltime = localtime_r(&now_sec, &tmbuf);
++            AVRational rate = mxf->tc.rate;
++            int flags = mxf->tc.flags;
++            int frame_start = av_rescale_rnd(remainder_us, rate.num, (int64_t)AV_TIME_BASE * rate.den, AV_ROUND_NEAR_INF);
++
++            if (ltime) {
++                if ((flags & AV_TIMECODE_FLAG_DROPFRAME) && !ltime->tm_sec && ltime->tm_min % 10)
++                    frame_start = FFMAX(frame_start, 2 * mxf->timecode_base / 30);
++                av_timecode_init_from_components(&mxf->tc, rate, flags,
++                                                 ltime->tm_hour, ltime->tm_min,
++                                                 ltime->tm_sec, frame_start, s);
++            }
++        }
+         if (mxf->edit_unit_byte_count) {
+             if ((err = mxf_write_partition(s, 1, 2, header_open_partition_key, 1)) < 0)
+                 return err;
+@@ -3465,7 +3505,7 @@
      int i;
  
      avio_write(pb, ff_mxf_random_index_pack_key, 16);
@@ -171,12 +234,14 @@ index 12ef521779..87378303cb 100644
  
      if (mxf->edit_unit_byte_count && !IS_OPATOM(s))
          avio_wb32(pb, 1); // BodySID of header partition
-@@ -3660,6 +3666,8 @@ static const AVOption mxf_options[] = {
+@@ -3662,6 +3702,10 @@
      MXF_COMMON_OPTIONS
      { "store_user_comments", "",
        offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
 +    { "store_user_duration", "",
 +      offsetof(MXFContext, store_user_duration), AV_OPT_TYPE_INT, {.i64 = -1}, -1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM},
++    { "mxf_wallclock_tc", "Use local wall clock as MXF timecode start",
++      offsetof(MXFContext, mxf_wallclock_tc), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
      { NULL },
  };
  
