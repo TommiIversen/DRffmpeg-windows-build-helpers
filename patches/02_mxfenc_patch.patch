@@ -195,7 +195,7 @@ diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
      mxf->timecode_track = av_mallocz(sizeof(*mxf->timecode_track));
      if (!mxf->timecode_track)
          return AVERROR(ENOMEM);
-@@ -3398,6 +3415,29 @@
+@@ -3398,6 +3415,49 @@
          return mxf_write_opatom_packet(s, pkt, &ie);
  
      if (!mxf->header_written) {
@@ -208,6 +208,26 @@ diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
 +            int64_t now_us = av_rescale_q(pkt->pts, st->time_base, AV_TIME_BASE_Q);
 +            time_t now_sec = now_us / AV_TIME_BASE;
 +            int64_t remainder_us = now_us % AV_TIME_BASE;
++            // One diagnostic line per file: confirms what the muxer actually
++            // reads. A real abs_wallclock PTS yields now_sec well past 2000;
++            // a value near 0 means the PTS is not an epoch wall clock.
++            av_log(s, AV_LOG_WARNING, "mxf_wallclock_tc: pkt->pts=%"PRId64" tb=%d/%d "
++                   "now_us=%"PRId64" now_sec=%"PRId64"\n",
++                   pkt->pts, st->time_base.num, st->time_base.den,
++                   now_us, (int64_t)now_sec);
++            // If the PTS does not carry an absolute (epoch) wall clock - e.g.
++            // -video_pts/-audio_pts abs_wallclock or -copyts is missing, or
++            // -reset_timestamps rebased it to ~0 - now_sec lands near 1970 and
++            // localtime_r would yield a bogus 01:00:00:00. Fall back to the
++            // system clock so the file stays usable, and warn loudly.
++            if (now_sec < 946684800) { // before 2000-01-01 UTC = not a wall clock
++                av_log(s, AV_LOG_WARNING, "mxf_wallclock_tc: first frame PTS does not "
++                       "carry an absolute wall clock; add -video_pts abs_wallclock "
++                       "-audio_pts abs_wallclock -copyts and remove -reset_timestamps. "
++                       "Falling back to the system clock.\n");
++                now_sec = time(NULL);
++                remainder_us = 0;
++            }
 +            struct tm tmbuf;
 +            struct tm *ltime = localtime_r(&now_sec, &tmbuf);
 +            AVRational rate = mxf->tc.rate;
@@ -225,7 +245,7 @@ diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
          if (mxf->edit_unit_byte_count) {
              if ((err = mxf_write_partition(s, 1, 2, header_open_partition_key, 1)) < 0)
                  return err;
-@@ -3465,7 +3505,7 @@
+@@ -3465,7 +3525,7 @@
      int i;
  
      avio_write(pb, ff_mxf_random_index_pack_key, 16);
@@ -234,7 +254,7 @@ diff --git a/libavformat/mxfenc.c b/libavformat/mxfenc.c
  
      if (mxf->edit_unit_byte_count && !IS_OPATOM(s))
          avio_wb32(pb, 1); // BodySID of header partition
-@@ -3662,6 +3702,10 @@
+@@ -3662,6 +3722,10 @@
      MXF_COMMON_OPTIONS
      { "store_user_comments", "",
        offsetof(MXFContext, store_user_comments), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, AV_OPT_FLAG_ENCODING_PARAM},
