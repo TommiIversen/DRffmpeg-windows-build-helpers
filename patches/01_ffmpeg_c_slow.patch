@@ -121,13 +121,9 @@ index c317987841..5f07574930 100644
      if (!fd)
          return AVERROR(ENOMEM);
 diff --git a/fftools/ffmpeg_opt.c b/fftools/ffmpeg_opt.c
-index 48e6816c19..68c8ce22d3 100644
 --- a/fftools/ffmpeg_opt.c
 +++ b/fftools/ffmpeg_opt.c
-@@ -2200,5 +2200,9 @@ const OptionDef options[] = {
-         "set video sync method globally; deprecated, use -fps_mode", "" },
- #endif
- 
+@@ -2200,2 +2200,6 @@ const OptionDef options[] = {
 +    { "slow", OPT_TYPE_INT, OPT_EXPERT,
 +        { &slow_target },
 +        "set initial slow level 0-9 for growing file support", "level" },

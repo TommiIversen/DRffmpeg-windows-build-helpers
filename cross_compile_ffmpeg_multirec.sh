@@ -2460,12 +2460,12 @@ build_ffmpeg() {
     fi
     config_options="$init_options"
     [[ $dr_enable_libcaca = y ]] && config_options+=" --enable-libcaca"
-    [[ $dr_enable_gray = y ]] && config_options+=" --enable-gray"
+    config_options+=" --enable-gray"
     [[ $dr_enable_libtesseract = y ]] && config_options+=" --enable-libtesseract"
     config_options+=" --enable-fontconfig"
     config_options+=" --enable-gmp"
-    [[ $dr_enable_libass = y ]] && config_options+=" --enable-libass"
-    [[ $dr_enable_libbluray = y ]] && config_options+=" --enable-libbluray"
+    config_options+=" --enable-libass"
+    config_options+=" --enable-libbluray"
     [[ $dr_enable_libbs2b = y ]] && config_options+=" --enable-libbs2b"
     [[ $dr_enable_libflite = y ]] && config_options+=" --enable-libflite"
     config_options+=" --enable-libfreetype"
@@ -2819,7 +2819,7 @@ build_ffmpeg_dependencies() {
   [[ $dr_enable_libilbc = y ]] && build_libilbc # Uses dlfcn.
   [[ $dr_enable_libmodplug = y ]] && build_libmodplug # Uses dlfcn.
   [[ $dr_enable_libgme = y ]] && build_libgme
-  [[ $dr_enable_libbluray = y ]] && build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
+  build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
   [[ $dr_enable_libbs2b = y ]] && build_libbs2b # Needs libsndfile. Uses dlfcn.
   build_libsoxr
   [[ $dr_enable_libflite = y ]] && build_libflite
@@ -2849,7 +2849,7 @@ build_ffmpeg_dependencies() {
   fi
   [[ $dr_enable_libzvbi = y ]] && build_zvbi # Uses iconv, libpng and dlfcn.
   build_fribidi # Uses dlfcn.
-  [[ $dr_enable_libass = y ]] && build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
+  build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
 
   build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
   build_libsrt # requires gnutls, mingw-std-threads
@@ -2969,9 +2969,6 @@ dr_enable_libaribb24=n     # Japanese ARIB broadcast data
 dr_enable_libvpx=n         # VP8/VP9 encoder+decoder (libvpx)
 dr_enable_libaom=n         # AV1 reference enc/dec — very slow build, redundant with libsvtav1+libdav1d
 dr_enable_libx265=n        # HEVC/H.265 encoder — large + slow build; set n if you don't need HEVC
-dr_enable_gray=y           # grayscale pixel-format support (no separate lib)
-dr_enable_libass=n         # ASS/SSA subtitle rendering
-dr_enable_libbluray=n      # Blu-ray playback support (rarely needed for broadcast/MXF)
 dr_enable_ffplay=n         # ffplay media player (requires SDL2 — skip to save build time)
 
 original_cflags='-mtune=generic -O3' # high compatible by default, see #219, some other good options are listed below, or you could use -march=native to target your local box:

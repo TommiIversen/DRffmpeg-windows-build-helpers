@@ -1,5 +1,11 @@
-
+Static ( singel exe)
 ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64 --build-intel-qsv=n
+
+
+Shared:
+./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64 --build-intel-qsv=n --build-ffmpeg-shared=y --build-ffmpeg-static=n
+
+
 
 must have:
 
