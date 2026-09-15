@@ -2512,7 +2512,14 @@ build_ffmpeg() {
     echo "Applying FFmpeg mxfenc patch"
     git apply "$patch_dir/02_mxfenc_patch.patch" || { echo "FATAL: mxfenc patch failed to apply!"; exit 1; }
     echo "Applying vsrc_amf timeapi fix"
-    git apply "$patch_dir/03_vsrc_amf_timeapi.patch" || { echo "FATAL: vsrc_amf patch failed to apply!"; exit 1; }
+    # Upstream commit c22a84c655 ("avfilter/vsrc_amf: drop WINMMAPI from function
+    # pointer typedefs") fixed this in ffmpeg master, so the patch is a no-op there.
+    # Only apply it when the tree actually still needs it (e.g. an older checkout).
+    if git apply --check "$patch_dir/03_vsrc_amf_timeapi.patch" 2>/dev/null; then
+      git apply "$patch_dir/03_vsrc_amf_timeapi.patch" || { echo "FATAL: vsrc_amf patch failed to apply!"; exit 1; }
+    else
+      echo "  skipping: vsrc_amf.c already fixed upstream, patch not needed"
+    fi
 
     if [[ $OSTYPE != darwin* ]]; then
       config_options+=" --enable-vulkan"
