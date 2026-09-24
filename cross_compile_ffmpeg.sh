@@ -1776,6 +1776,101 @@ build_libsrt() {
   cd ..
 }
 
+build_libsrt_shared() {
+  # FFmpeg links the static libsrt from build_libsrt above - that one must stay as it is.
+  # This is a second, shared build of the same sources, so our own apps can call the SRT API
+  # directly (P/Invoke) from a libsrt.dll sitting next to the av*.dll's. Own source copy and
+  # own install prefix, so nothing here can leak into what FFmpeg links against.
+  if [[ $compiler_flavors == "native" ]]; then
+    echo "skipping shared libsrt build for native builds"
+    return
+  fi
+  local srt_version=1.5.4
+  local srt_dir=srt-${srt_version}_shared
+  srt_shared_prefix="$(pwd)/${srt_dir}_install" # not local, build_ffmpeg picks the dll up from here
+  if [ ! -f "$srt_dir/unpacked.successfully" ]; then
+    # the tarball always unpacks as srt-$srt_version, so unpack it aside and rename
+    rm -rf "$srt_dir" "${srt_dir}_download"
+    mkdir "${srt_dir}_download" || exit 1
+    cd "${srt_dir}_download"
+      download_and_unpack_file https://github.com/Haivision/srt/archive/v${srt_version}.tar.gz srt-${srt_version}
+    cd ..
+    mv "${srt_dir}_download/srt-${srt_version}" "$srt_dir" || exit 1
+    rm -rf "${srt_dir}_download"
+    touch "$srt_dir/unpacked.successfully" || exit 1
+  fi
+  cd "$srt_dir"
+    # gnutls.pc (see build_gnutls) doesn't list all of gnutls' static deps, and has -liconv
+    # before -lunistring, which only breaks once you link a dll. Append them at the end of the
+    # link line. USE_STATIC_LIBSTDCXX + -static keeps libstdc++-6/libgcc_s_seh-1/libwinpthread-1
+    # out of the imports, so the dll only needs Windows' own dll's.
+    local srt_extra_libs="-lunistring -liconv -lncrypt -lbcrypt -lcrypt32 -lws2_32"
+    local touch_name=$(get_small_touchfile_name already_ran_cmake "srt_shared $srt_version $srt_extra_libs")
+    if [ ! -f $touch_name ]; then
+      rm -f already_* # reset so that make will run again if an option just changed
+      echo "doing cmake for shared libsrt in $(pwd)"
+      nice -n 5 ${cmake_command} -G"Unix Makefiles" . \
+        -DCMAKE_SYSTEM_NAME=Windows \
+        -DCMAKE_FIND_ROOT_PATH=$mingw_w64_x86_64_prefix \
+        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+        -DCMAKE_RANLIB=${cross_prefix}ranlib \
+        -DCMAKE_C_COMPILER=${cross_prefix}gcc \
+        -DCMAKE_CXX_COMPILER=${cross_prefix}g++ \
+        -DCMAKE_RC_COMPILER=${cross_prefix}windres \
+        -DCMAKE_INSTALL_PREFIX=$srt_shared_prefix \
+        -DUSE_ENCLIB=gnutls \
+        -DENABLE_ENCRYPTION=ON \
+        -DENABLE_SHARED=ON \
+        -DENABLE_STATIC=OFF \
+        -DBUILD_SHARED_LIBS=1 \
+        -DENABLE_APPS=OFF \
+        -DENABLE_BONDING=ON \
+        -DUSE_STATIC_LIBSTDCXX=ON \
+        -DCMAKE_SHARED_LINKER_FLAGS="-static -s" \
+        -DCMAKE_C_STANDARD_LIBRARIES="$srt_extra_libs" \
+        -DCMAKE_CXX_STANDARD_LIBRARIES="$srt_extra_libs" || exit 1
+      touch $touch_name || exit 1
+    fi
+    do_make_and_make_install
+  cd ..
+  srt_shared_dll="$srt_shared_prefix/bin/libsrt.dll" # not local, used by build_ffmpeg
+  if [ ! -f "$srt_shared_dll" ]; then
+    echo_and_exit "shared libsrt build did not produce $srt_shared_dll"
+  fi
+  # sanity check: only Windows' own dll's may be imported, otherwise the dll won't load on a
+  # machine that doesn't happen to have the mingw/gnutls runtime dll's next to it
+  local foreign_imports=$(${cross_prefix}objdump -p "$srt_shared_dll" | grep "DLL Name" | \
+    grep -iE "libstdc\+\+|libgcc|libwinpthread|libgnutls|libnettle|libhogweed|libgmp|libidn2|libiconv|libunistring")
+  if [[ -n $foreign_imports ]]; then
+    echo_and_exit "shared libsrt imports non-system dll's, would not load standalone: $foreign_imports"
+  fi
+  cat > "$srt_shared_prefix/SRT_VERSION.md" <<SRT_VERSION_MD
+# libsrt.dll
+
+Source: https://github.com/Haivision/srt/archive/v${srt_version}.tar.gz (libsrt ${srt_version})
+Built by: cross_compile_ffmpeg.sh, build_libsrt_shared()
+Toolchain: ${cross_prefix}gcc (mingw-w64, ${bits_target}-bit)
+
+CMake options:
+
+    -DUSE_ENCLIB=gnutls -DENABLE_ENCRYPTION=ON
+    -DENABLE_SHARED=ON -DENABLE_STATIC=OFF -DBUILD_SHARED_LIBS=1
+    -DENABLE_APPS=OFF -DENABLE_BONDING=ON -DUSE_STATIC_LIBSTDCXX=ON
+    -DCMAKE_SHARED_LINKER_FLAGS="-static -s"
+    -DCMAKE_C_STANDARD_LIBRARIES="${srt_extra_libs}"
+    -DCMAKE_CXX_STANDARD_LIBRARIES="${srt_extra_libs}"
+
+gnutls, nettle, gmp, libstdc++, libgcc and winpthread are linked in statically, so the dll
+only imports Windows' own dll's (KERNEL32, WS2_32, WSOCK32, ADVAPI32, CRYPT32, ncrypt, msvcrt).
+
+This is a separate build from the static libsrt that FFmpeg itself links against - same
+sources and same crypto library (gnutls), so the SRT behaviour matches what ffmpeg.exe does.
+SRT_VERSION_MD
+  echo "built shared libsrt: $srt_shared_dll"
+}
+
 build_libass() {
   do_git_checkout_and_make_install https://github.com/libass/libass.git
 }
@@ -2663,6 +2758,15 @@ build_ffmpeg() {
 
     do_make_and_make_install # install ffmpeg as well (for shared, to separate out the .dll's, for things that depend on it like VLC, to create static libs)
 
+    # ship the standalone libsrt.dll next to the av*.dll's, so apps that speak SRT themselves
+    # (P/Invoke etc.) get it straight out of the build instead of hunting one down elsewhere
+    if [[ $build_type == "shared" && -f "$srt_shared_dll" ]]; then
+      mkdir -p bin
+      cp -f "$srt_shared_dll" bin/ || exit 1
+      cp -f "$srt_shared_prefix/SRT_VERSION.md" bin/ || exit 1
+      echo "copied $(basename $srt_shared_dll) into $(pwd)/bin"
+    fi
+
     # build ismindex.exe, too, just for fun
     if [[ $build_ismindex == "y" ]]; then
       make tools/ismindex.exe || exit 1
@@ -2860,6 +2964,7 @@ build_ffmpeg_dependencies() {
 
   build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
   build_libsrt # requires gnutls, mingw-std-threads
+  build_libsrt_shared # same sources as above, but a standalone libsrt.dll shipped next to the av*.dll's
   if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
     # Disable libaribcatption on old versions
     [[ $dr_enable_libaribcaption = y ]] && build_libaribcaption
