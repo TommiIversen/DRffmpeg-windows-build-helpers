@@ -580,7 +580,7 @@ do_cmake() {
     if [[ $compiler_flavors != "native" ]]; then
       local command="${build_from_dir} -DENABLE_STATIC_RUNTIME=1 -DBUILD_SHARED_LIBS=0 -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH=$mingw_w64_x86_64_prefix -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -DCMAKE_RANLIB=${cross_prefix}ranlib -DCMAKE_C_COMPILER=${cross_prefix}gcc -DCMAKE_CXX_COMPILER=${cross_prefix}g++ -DCMAKE_RC_COMPILER=${cross_prefix}windres -DCMAKE_INSTALL_PREFIX=$mingw_w64_x86_64_prefix $extra_args"
     else
-      local command="${build_from_dir} -DENABLE_STATIC_RUNTIME=1 -DBUILD_SHARED_LIBS=0 -DCMAKE_INSTALL_PREFIX=$mingw_w64_x86_64_prefix $extra_args"
+      local command="${build_from_dir} -DENABLE_STATIC_RUNTIME=1 -DBUILD_SHARED_LIBS=0 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_PREFIX=$mingw_w64_x86_64_prefix $extra_args"
     fi
     echo "doing ${cmake_command}  -G\"Unix Makefiles\" $command"
     nice -n 5  ${cmake_command} -G"Unix Makefiles" $command || exit 1
@@ -724,6 +724,9 @@ generic_configure() {
   build_triple="${build_triple:-$(gcc -dumpmachine)}"
   local extra_configure_options="$1"
   if [[ -n $build_triple ]]; then extra_configure_options+=" --build=$build_triple"; fi
+  if [[ $compiler_flavors == "native" ]]; then
+    extra_configure_options+=" --with-pic" # these .a's end up inside shared libav*.so's, see the native section at the bottom
+  fi
   do_configure "--host=$host_target --prefix=$mingw_w64_x86_64_prefix --disable-shared --enable-static $extra_configure_options"
 }
 
@@ -1185,7 +1188,19 @@ build_unistring() {
 }
 
 build_libidn2() {
-  generic_download_and_make_and_install https://ftp.gnu.org/gnu/libidn/libidn2-2.3.0.tar.gz
+  download_and_unpack_file https://ftp.gnu.org/gnu/libidn/libidn2-2.3.0.tar.gz
+  cd libidn2-2.3.0
+    generic_configure
+    # libidn2 adds ELF symbol-version aliases (@IDN2_0.0.0) for the ABI of its own shared library.
+    # In a static .a they are no use, and once gnutls pulls it into a shared libavformat.so or
+    # libsrt.so on Linux, the link fails with "version node not found". configure has no switch
+    # for it, so take the result of its check back out of config.h.
+    if grep -q '^#define HAVE_SYMVER_ALIAS_SUPPORT 1$' config.h; then
+      sed -i 's|^#define HAVE_SYMVER_ALIAS_SUPPORT 1$|/* #undef HAVE_SYMVER_ALIAS_SUPPORT */|' config.h
+      rm -f already_ran_make* # so a library already built with the aliases gets rebuilt without them
+    fi
+    do_make_and_make_install
+  cd ..
 }
 
 build_gnutls() {
@@ -1719,24 +1734,38 @@ build_libcaca() {
   cd ..
 }
 
+decklink_sdk_version() { # the Blackmagic SDK version of the DeckLink headers in directory $1
+  sed -nE 's/^#define BLACKMAGIC_DECKLINK_API_VERSION_STRING\s+"([^"]+)".*/\1/p' "$1/DeckLinkAPIVersion.h" 2>/dev/null
+}
+
 build_libdecklink() {
-  local url=https://notabug.org/RiCON/decklink-headers.git
-  git ls-remote $url
-  if [ $? -ne 0 ]; then
-    # If NotABug.org server is down , Change to use GitLab.com .
-    # https://gitlab.com/m-ab-s/decklink-headers
-    url=https://gitlab.com/m-ab-s/decklink-headers.git
+  # Both platforms build against the headers of one Blackmagic Desktop Video SDK, kept in
+  # patches/decklink_sdk/ - see the README there for where they come from and how to update them.
+  local windows_headers="$patch_dir/decklink_sdk/windows"
+  if [[ ! -f "$windows_headers/DeckLinkAPI.h" ]]; then
+    echo_and_exit "no DeckLink headers in patches/decklink_sdk/ - run patches/decklink_sdk/update.sh \"/path/to/Blackmagic DeckLink SDK\" first, see patches/decklink_sdk/README.md"
   fi
-  do_git_checkout $url
-  cd decklink-headers_git
-    do_make_install PREFIX=$mingw_w64_x86_64_prefix
-    # SDK 15.x includes v14_2_1 compat interfaces in DeckLinkAPI.h but FFmpeg
-    # expects them in a separate header. Create an empty stub to satisfy the include.
-    if [[ ! -f "$mingw_w64_x86_64_prefix/include/DeckLinkAPI_v14_2_1.h" ]]; then
-      printf '#ifndef __DeckLinkAPI_v14_2_1_h__\n#define __DeckLinkAPI_v14_2_1_h__\n// Compat interfaces already defined in DeckLinkAPI.h for SDK >= 15.x\n#endif\n' \
-        > "$mingw_w64_x86_64_prefix/include/DeckLinkAPI_v14_2_1.h"
-    fi
-  cd ..
+  if [[ $compiler_flavors == "native" ]]; then
+    # The Windows headers are COM - "rpc.h" is a Windows header. On Linux FFmpeg #includes
+    # DeckLinkAPIDispatch.cpp from the SDK's Linux headers instead.
+    cp -f "$decklink_sdk_dir"/*.h "$decklink_sdk_dir"/*.cpp "$mingw_w64_x86_64_prefix/include/" || exit 1
+  else
+    cp -f "$windows_headers"/*.h "$windows_headers"/*.c "$mingw_w64_x86_64_prefix/include/" || exit 1
+  fi
+  # SDK 15.x includes v14_2_1 compat interfaces in DeckLinkAPI.h but FFmpeg
+  # expects them in a separate header. Create an empty stub to satisfy the include.
+  # (Only the Windows headers need it - the Linux SDK ships a real DeckLinkAPI_v14_2_1.h.)
+  if [[ ! -f "$mingw_w64_x86_64_prefix/include/DeckLinkAPI_v14_2_1.h" ]]; then
+    printf '#ifndef __DeckLinkAPI_v14_2_1_h__\n#define __DeckLinkAPI_v14_2_1_h__\n// Compat interfaces already defined in DeckLinkAPI.h for SDK >= 15.x\n#endif\n' \
+      > "$mingw_w64_x86_64_prefix/include/DeckLinkAPI_v14_2_1.h"
+  fi
+  # Windows and Linux must build against the same SDK, so they behave the same - the version is
+  # also the oldest Desktop Video driver FFmpeg accepts.
+  local expected="$(decklink_sdk_version "$windows_headers")"
+  local got="$(decklink_sdk_version "$mingw_w64_x86_64_prefix/include")"
+  if [[ -z $got || $got != "$expected" ]]; then
+    echo_and_exit "DeckLink headers for this build are SDK ${got:-unknown}, patches/decklink_sdk/windows is SDK $expected - Windows and Linux must use the same SDK version"
+  fi
 }
 
 build_zvbi() {
@@ -1779,15 +1808,11 @@ build_libsrt() {
 build_libsrt_shared() {
   # FFmpeg links the static libsrt from build_libsrt above - that one must stay as it is.
   # This is a second, shared build of the same sources, so our own apps can call the SRT API
-  # directly (P/Invoke) from a libsrt.dll sitting next to the av*.dll's. Own source copy and
-  # own install prefix, so nothing here can leak into what FFmpeg links against.
-  if [[ $compiler_flavors == "native" ]]; then
-    echo "skipping shared libsrt build for native builds"
-    return
-  fi
+  # directly (P/Invoke) from a libsrt.dll / libsrt.so sitting next to the av* libraries. Own
+  # source copy and own install prefix, so nothing here can leak into what FFmpeg links against.
   local srt_version=1.5.4
   local srt_dir=srt-${srt_version}_shared
-  srt_shared_prefix="$(pwd)/${srt_dir}_install" # not local, build_ffmpeg picks the dll up from here
+  srt_shared_prefix="$(pwd)/${srt_dir}_install" # not local, build_ffmpeg picks the library up from here
   if [ ! -f "$srt_dir/unpacked.successfully" ]; then
     # the tarball always unpacks as srt-$srt_version, so unpack it aside and rename
     rm -rf "$srt_dir" "${srt_dir}_download"
@@ -1799,76 +1824,102 @@ build_libsrt_shared() {
     rm -rf "${srt_dir}_download"
     touch "$srt_dir/unpacked.successfully" || exit 1
   fi
-  cd "$srt_dir"
+  local srt_options="-DUSE_ENCLIB=gnutls -DENABLE_ENCRYPTION=ON -DENABLE_SHARED=ON -DENABLE_STATIC=OFF -DBUILD_SHARED_LIBS=1 -DENABLE_APPS=OFF -DENABLE_BONDING=ON"
+  local srt_link_libs srt_linker_flags
+  if [[ $compiler_flavors == "native" ]]; then
+    # gnutls is our own static build here too, so its static deps have to come along on the link;
+    # pkg-config knows them. --no-undefined turns a missing one into a link error, rather than a
+    # dlopen failure on someone else's machine. --exclude-libs keeps the gnutls/nettle/gmp symbols
+    # inside: an ELF .so exports everything by default, and a process that also loads the system's
+    # gnutls or gmp could then end up calling into the wrong copy. The dll only exports srt_* too.
+    srt_link_libs="$(pkg-config --static --libs gnutls)"
+    srt_linker_flags="-Wl,--no-undefined -Wl,--exclude-libs,ALL -s"
+  else
     # gnutls.pc (see build_gnutls) doesn't list all of gnutls' static deps, and has -liconv
     # before -lunistring, which only breaks once you link a dll. Append them at the end of the
     # link line. USE_STATIC_LIBSTDCXX + -static keeps libstdc++-6/libgcc_s_seh-1/libwinpthread-1
     # out of the imports, so the dll only needs Windows' own dll's.
-    local srt_extra_libs="-lunistring -liconv -lncrypt -lbcrypt -lcrypt32 -lws2_32"
-    local touch_name=$(get_small_touchfile_name already_ran_cmake "srt_shared $srt_version $srt_extra_libs")
+    srt_options+=" -DUSE_STATIC_LIBSTDCXX=ON"
+    srt_link_libs="-lunistring -liconv -lncrypt -lbcrypt -lcrypt32 -lws2_32"
+    srt_linker_flags="-static -s"
+  fi
+  cd "$srt_dir"
+    local touch_name=$(get_small_touchfile_name already_ran_cmake "srt_shared $srt_version $srt_options $srt_link_libs $srt_linker_flags")
     if [ ! -f $touch_name ]; then
       rm -f already_* # reset so that make will run again if an option just changed
       echo "doing cmake for shared libsrt in $(pwd)"
-      nice -n 5 ${cmake_command} -G"Unix Makefiles" . \
-        -DCMAKE_SYSTEM_NAME=Windows \
-        -DCMAKE_FIND_ROOT_PATH=$mingw_w64_x86_64_prefix \
-        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
-        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
-        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
-        -DCMAKE_RANLIB=${cross_prefix}ranlib \
-        -DCMAKE_C_COMPILER=${cross_prefix}gcc \
-        -DCMAKE_CXX_COMPILER=${cross_prefix}g++ \
-        -DCMAKE_RC_COMPILER=${cross_prefix}windres \
-        -DCMAKE_INSTALL_PREFIX=$srt_shared_prefix \
-        -DUSE_ENCLIB=gnutls \
-        -DENABLE_ENCRYPTION=ON \
-        -DENABLE_SHARED=ON \
-        -DENABLE_STATIC=OFF \
-        -DBUILD_SHARED_LIBS=1 \
-        -DENABLE_APPS=OFF \
-        -DENABLE_BONDING=ON \
-        -DUSE_STATIC_LIBSTDCXX=ON \
-        -DCMAKE_SHARED_LINKER_FLAGS="-static -s" \
-        -DCMAKE_C_STANDARD_LIBRARIES="$srt_extra_libs" \
-        -DCMAKE_CXX_STANDARD_LIBRARIES="$srt_extra_libs" || exit 1
+      if [[ $compiler_flavors == "native" ]]; then
+        nice -n 5 ${cmake_command} -G"Unix Makefiles" . \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+          -DCMAKE_INSTALL_PREFIX=$srt_shared_prefix \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          $srt_options \
+          -DCMAKE_SHARED_LINKER_FLAGS="$srt_linker_flags" \
+          -DCMAKE_C_STANDARD_LIBRARIES="$srt_link_libs" \
+          -DCMAKE_CXX_STANDARD_LIBRARIES="$srt_link_libs" || exit 1
+      else
+        nice -n 5 ${cmake_command} -G"Unix Makefiles" . \
+          -DCMAKE_SYSTEM_NAME=Windows \
+          -DCMAKE_FIND_ROOT_PATH=$mingw_w64_x86_64_prefix \
+          -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+          -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+          -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+          -DCMAKE_RANLIB=${cross_prefix}ranlib \
+          -DCMAKE_C_COMPILER=${cross_prefix}gcc \
+          -DCMAKE_CXX_COMPILER=${cross_prefix}g++ \
+          -DCMAKE_RC_COMPILER=${cross_prefix}windres \
+          -DCMAKE_INSTALL_PREFIX=$srt_shared_prefix \
+          $srt_options \
+          -DCMAKE_SHARED_LINKER_FLAGS="$srt_linker_flags" \
+          -DCMAKE_C_STANDARD_LIBRARIES="$srt_link_libs" \
+          -DCMAKE_CXX_STANDARD_LIBRARIES="$srt_link_libs" || exit 1
+      fi
       touch $touch_name || exit 1
     fi
     do_make_and_make_install
   cd ..
-  srt_shared_dll="$srt_shared_prefix/bin/libsrt.dll" # not local, used by build_ffmpeg
-  if [ ! -f "$srt_shared_dll" ]; then
-    echo_and_exit "shared libsrt build did not produce $srt_shared_dll"
+  # sanity check: gnutls and its deps must be linked in, not depended on, or the library won't
+  # load on a machine that doesn't happen to have them installed
+  local static_deps="libgnutls|libnettle|libhogweed|libgmp|libidn2|libiconv|libunistring|libtasn1"
+  local foreign_deps
+  if [[ $compiler_flavors == "native" ]]; then
+    srt_shared_lib="$srt_shared_prefix/lib/libsrt.so" # not local, used by build_ffmpeg
+    [ -f "$srt_shared_lib" ] || echo_and_exit "shared libsrt build did not produce $srt_shared_lib"
+    foreign_deps=$(readelf -d "$srt_shared_lib" | grep NEEDED | grep -iE "$static_deps")
+  else
+    srt_shared_lib="$srt_shared_prefix/bin/libsrt.dll" # not local, used by build_ffmpeg
+    [ -f "$srt_shared_lib" ] || echo_and_exit "shared libsrt build did not produce $srt_shared_lib"
+    # on Windows the mingw runtime dll's must not be imported either
+    foreign_deps=$(${cross_prefix}objdump -p "$srt_shared_lib" | grep "DLL Name" | grep -iE "libstdc\+\+|libgcc|libwinpthread|$static_deps")
   fi
-  # sanity check: only Windows' own dll's may be imported, otherwise the dll won't load on a
-  # machine that doesn't happen to have the mingw/gnutls runtime dll's next to it
-  local foreign_imports=$(${cross_prefix}objdump -p "$srt_shared_dll" | grep "DLL Name" | \
-    grep -iE "libstdc\+\+|libgcc|libwinpthread|libgnutls|libnettle|libhogweed|libgmp|libidn2|libiconv|libunistring")
-  if [[ -n $foreign_imports ]]; then
-    echo_and_exit "shared libsrt imports non-system dll's, would not load standalone: $foreign_imports"
+  if [[ -n $foreign_deps ]]; then
+    echo_and_exit "shared libsrt depends on libraries that should have been linked in, it would not load standalone: $foreign_deps"
   fi
+  local srt_target="Windows ${bits_target}-bit (mingw-w64 cross compile)"
+  [[ $compiler_flavors == "native" ]] && srt_target="$(uname -s) ${bits_target}-bit (native)"
   cat > "$srt_shared_prefix/SRT_VERSION.md" <<SRT_VERSION_MD
-# libsrt.dll
+# $(basename "$srt_shared_lib")
 
-Source: https://github.com/Haivision/srt/archive/v${srt_version}.tar.gz (libsrt ${srt_version})
+Source:   https://github.com/Haivision/srt/archive/v${srt_version}.tar.gz (libsrt ${srt_version})
 Built by: cross_compile_ffmpeg.sh, build_libsrt_shared()
-Toolchain: ${cross_prefix}gcc (mingw-w64, ${bits_target}-bit)
+Target:   ${srt_target}
+Compiler: $(basename "${cross_prefix}gcc") $("${cross_prefix}gcc" -dumpversion)
 
 CMake options:
 
-    -DUSE_ENCLIB=gnutls -DENABLE_ENCRYPTION=ON
-    -DENABLE_SHARED=ON -DENABLE_STATIC=OFF -DBUILD_SHARED_LIBS=1
-    -DENABLE_APPS=OFF -DENABLE_BONDING=ON -DUSE_STATIC_LIBSTDCXX=ON
-    -DCMAKE_SHARED_LINKER_FLAGS="-static -s"
-    -DCMAKE_C_STANDARD_LIBRARIES="${srt_extra_libs}"
-    -DCMAKE_CXX_STANDARD_LIBRARIES="${srt_extra_libs}"
+    ${srt_options}
+    -DCMAKE_SHARED_LINKER_FLAGS="${srt_linker_flags}"
+    -DCMAKE_C_STANDARD_LIBRARIES="${srt_link_libs}"
+    -DCMAKE_CXX_STANDARD_LIBRARIES="${srt_link_libs}"
 
-gnutls, nettle, gmp, libstdc++, libgcc and winpthread are linked in statically, so the dll
-only imports Windows' own dll's (KERNEL32, WS2_32, WSOCK32, ADVAPI32, CRYPT32, ncrypt, msvcrt).
+gnutls and its dependencies (nettle, hogweed, gmp, ...) are linked in statically, so the library
+only depends on the platform's own system libraries.
 
-This is a separate build from the static libsrt that FFmpeg itself links against - same
-sources and same crypto library (gnutls), so the SRT behaviour matches what ffmpeg.exe does.
+This is a separate build from the static libsrt that FFmpeg itself links against - same sources
+and same crypto library (gnutls), so the SRT behaviour matches what ffmpeg does.
 SRT_VERSION_MD
-  echo "built shared libsrt: $srt_shared_dll"
+  echo "built shared libsrt: $srt_shared_lib"
 }
 
 build_libass() {
@@ -1945,7 +1996,7 @@ build_libvpx() {
   cd libvpx_git
     apply_patch file://$patch_dir/vpx_160_semaphore.patch -p1 # perhaps someday can remove this after 1.6.0 or mingw fixes it LOL
     if [[ $compiler_flavors == "native" ]]; then
-      local config_options=""
+      local config_options="--enable-pic" # ends up inside a shared libavcodec.so
     elif [[ "$bits_target" = "32" ]]; then
       local config_options="--target=x86-win32-gcc"
     else
@@ -2121,6 +2172,9 @@ build_libx264() {
     fi
 
     local configure_flags="--host=$host_target --enable-static --cross-prefix=$cross_prefix --prefix=$mingw_w64_x86_64_prefix --enable-strip" # --enable-win32thread --enable-debug is another useful option here?
+    if [[ $compiler_flavors == "native" ]]; then
+      configure_flags+=" --enable-pic" # ends up inside a shared libavcodec.so
+    fi
     if [[ $build_x264_with_libav == "n" ]]; then
       configure_flags+=" --disable-lavf" # lavf stands for libavformat, there is no --enable-lavf option, either auto or disable...
     fi
@@ -2540,13 +2594,17 @@ build_ffmpeg() {
     fi
 
     init_options="--pkg-config=pkg-config --pkg-config-flags=--static --extra-version=ffmpeg-windows-build-helpers --enable-version3 --disable-debug --disable-w32threads"
-    [[ $dr_enable_ffplay = n ]] && init_options+=" --disable-ffplay"
+    [[ $enable_ffplay = n ]] && init_options+=" --disable-ffplay --disable-sdl2" # sdl2 is autodetected and only ffplay uses it - without this a libSDL2 left in the prefix by an earlier ffplay build switches it on
     if [[ $compiler_flavors != "native" ]]; then
       init_options+=" --arch=$arch --target-os=mingw32 --cross-prefix=$cross_prefix"
     else
       if [[ $OSTYPE != darwin* ]]; then
-        unset PKG_CONFIG_LIBDIR # just use locally packages for all the xcb stuff for now, you need to install them locally first...
-        init_options+=" --enable-libv4l2 --enable-libxcb --enable-libxcb-shm --enable-libxcb-xfixes --enable-libxcb-shape "
+        # No X11 grabbing and no libv4l2: the result runs headless under a console app, and both
+        # would make libavdevice.so depend on system libraries the target may not have. The plain
+        # v4l2 input device still builds - it only needs kernel headers. libxcb and xlib are
+        # autodetected, so they have to be switched off explicitly. PKG_CONFIG_LIBDIR stays empty
+        # (see the bottom of the script), so configure sees only our own libraries, as on Windows.
+        init_options+=" --disable-libxcb --disable-libxcb-shm --disable-libxcb-xfixes --disable-libxcb-shape --disable-xlib"
       fi
     fi
     if [[ `uname` =~ "5.1" ]]; then
@@ -2554,44 +2612,45 @@ build_ffmpeg() {
       # Fix WinXP incompatibility by disabling Microsoft's Secure Channel, because Windows XP doesn't support TLS 1.1 and 1.2, but with GnuTLS or OpenSSL it does.  XP compat!
     fi
     config_options="$init_options"
-    [[ $dr_enable_libcaca = y ]] && config_options+=" --enable-libcaca"
-    [[ $dr_enable_gray = y ]] && config_options+=" --enable-gray"
-    [[ $dr_enable_libtesseract = y ]] && config_options+=" --enable-libtesseract"
+    [[ $enable_libcaca = y ]] && config_options+=" --enable-libcaca"
+    [[ $enable_gray = y ]] && config_options+=" --enable-gray"
+    [[ $enable_libtesseract = y ]] && config_options+=" --enable-libtesseract"
     config_options+=" --enable-fontconfig"
     config_options+=" --enable-gmp"
-    [[ $dr_enable_libass = y ]] && config_options+=" --enable-libass"
-    [[ $dr_enable_libbluray = y ]] && config_options+=" --enable-libbluray"
-    [[ $dr_enable_libbs2b = y ]] && config_options+=" --enable-libbs2b"
-    [[ $dr_enable_libflite = y ]] && config_options+=" --enable-libflite"
+    [[ $enable_libass = y ]] && config_options+=" --enable-libass"
+    [[ $enable_libbluray = y ]] && config_options+=" --enable-libbluray"
+    [[ $enable_libbs2b = y ]] && config_options+=" --enable-libbs2b"
+    [[ $enable_libflite = y ]] && config_options+=" --enable-libflite"
     config_options+=" --enable-libfreetype"
     config_options+=" --enable-libfribidi"
     config_options+=" --enable-libharfbuzz"
     config_options+=" --enable-filter=drawtext"
-    [[ $dr_enable_libgme = y ]] && config_options+=" --enable-libgme"
-    [[ $dr_enable_libgsm = y ]] && config_options+=" --enable-libgsm"
-    [[ $dr_enable_libilbc = y ]] && config_options+=" --enable-libilbc"
-    [[ $dr_enable_libmodplug = y ]] && config_options+=" --enable-libmodplug"
+    [[ $enable_libgme = y ]] && config_options+=" --enable-libgme"
+    [[ $enable_libgsm = y ]] && config_options+=" --enable-libgsm"
+    [[ $enable_libilbc = y ]] && config_options+=" --enable-libilbc"
+    [[ $enable_libmodplug = y ]] && config_options+=" --enable-libmodplug"
     config_options+=" --enable-libmp3lame"
-    [[ $dr_enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrnb"
-    [[ $dr_enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrwb"
+    [[ $enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrnb"
+    [[ $enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrwb"
     config_options+=" --enable-libopus"
-    [[ $dr_enable_libsnappy = y ]] && config_options+=" --enable-libsnappy"
+    [[ $enable_libsnappy = y ]] && config_options+=" --enable-libsnappy"
     config_options+=" --enable-libsoxr"
     config_options+=" --enable-libspeex"
-    [[ $dr_enable_libtheora = y ]] && config_options+=" --enable-libtheora"
+    [[ $enable_libtheora = y ]] && config_options+=" --enable-libtheora"
     config_options+=" --enable-libtwolame"
-    [[ $dr_enable_libopencore_amr = y ]] && config_options+=" --enable-libvo-amrwbenc"
+    [[ $enable_libopencore_amr = y ]] && config_options+=" --enable-libvo-amrwbenc"
     config_options+=" --enable-libvorbis"
     config_options+=" --enable-libwebp"
     config_options+=" --enable-libzimg"
-    [[ $dr_enable_libzvbi = y ]] && config_options+=" --enable-libzvbi"
-    [[ $dr_enable_libmysofa = y ]] && config_options+=" --enable-libmysofa"
+    [[ $enable_libzvbi = y ]] && config_options+=" --enable-libzvbi"
+    [[ $enable_libmysofa = y ]] && config_options+=" --enable-libmysofa"
     config_options+=" --enable-libopenjpeg"
-    [[ $dr_enable_libopenh264 = y ]] && config_options+=" --enable-libopenh264"
-    [[ $dr_enable_libvmaf = y ]] && config_options+=" --enable-libvmaf"
+    [[ $enable_libopenh264 = y ]] && config_options+=" --enable-libopenh264"
+    [[ $enable_libvmaf = y ]] && config_options+=" --enable-libvmaf"
     config_options+=" --enable-libsrt"
     config_options+=" --enable-libxml2"
-    config_options+=" --enable-opengl"
+    # no --enable-opengl: FFmpeg has dropped the opengl output device, so nothing uses it, and on
+    # Linux it would make the build depend on libGL
     config_options+=" --enable-libdav1d"
     config_options+=" --enable-gnutls"
 
@@ -2659,11 +2718,11 @@ build_ffmpeg() {
       fi
       config_options+=" --enable-libsvtav1"
     fi # else doesn't work/matter with 32 bit
-    [[ $dr_enable_libvpx = y ]] && config_options+=" --enable-libvpx"
-    [[ $dr_enable_libaom = y ]] && config_options+=" --enable-libaom"
+    [[ $enable_libvpx = y ]] && config_options+=" --enable-libvpx"
+    [[ $enable_libaom = y ]] && config_options+=" --enable-libaom"
 
-    if [[ $compiler_flavors != "native" ]]; then
-      config_options+=" --enable-nvenc --enable-nvdec" # don't work OS X
+    if [[ $compiler_flavors != "native" || $OSTYPE != darwin* ]]; then # nvenc/nvdec work on Linux native as well, just not on macOS native
+      config_options+=" --enable-nvenc --enable-nvdec"
 
 
       config_options+=" --enable-parser=h264 --enable-parser=aac"
@@ -2701,22 +2760,22 @@ build_ffmpeg() {
     
     if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
       # Disable libaribcatption on old versions
-      [[ $dr_enable_libaribcaption = y ]] && config_options+=" --enable-libaribcaption" # libaribcatption (MIT licensed)
+      [[ $enable_libaribcaption = y ]] && config_options+=" --enable-libaribcaption" # libaribcatption (MIT licensed)
     fi
     
     if [[ $enable_gpl == 'y' ]]; then
       config_options+=" --enable-gpl --enable-frei0r --enable-librubberband --enable-libx264"
-      [[ $dr_enable_libx265 = y ]] && config_options+=" --enable-libx265"
-      [[ $dr_enable_avisynth = y ]] && config_options+=" --enable-avisynth"
-      [[ $dr_enable_libaribb24 = y ]] && config_options+=" --enable-libaribb24"
-      [[ $dr_enable_libvidstab = y ]] && config_options+=" --enable-libvidstab"
+      [[ $enable_libx265 = y ]] && config_options+=" --enable-libx265"
+      [[ $enable_avisynth = y ]] && config_options+=" --enable-avisynth"
+      [[ $enable_libaribb24 = y ]] && config_options+=" --enable-libaribb24"
+      [[ $enable_libvidstab = y ]] && config_options+=" --enable-libvidstab"
       config_options+=" --enable-libxvid"
-      [[ $dr_enable_libdavs2 = y ]] && config_options+=" --enable-libdavs2"
+      [[ $enable_libdavs2 = y ]] && config_options+=" --enable-libdavs2"
       if [[ $host_target != 'i686-w64-mingw32' ]]; then
-        [[ $dr_enable_libxavs2 = y ]] && config_options+=" --enable-libxavs2"
+        [[ $enable_libxavs2 = y ]] && config_options+=" --enable-libxavs2"
       fi
       if [[ $compiler_flavors != "native" ]]; then
-        [[ $dr_enable_libxavs = y ]] && config_options+=" --enable-libxavs" # don't compile OS X
+        [[ $enable_libxavs = y ]] && config_options+=" --enable-libxavs" # don't compile OS X
       fi
     fi
     local licensed_gpl=n # lgpl build with libx264 included for those with "commercial" license :)
@@ -2736,8 +2795,8 @@ build_ffmpeg() {
     if [[ "$non_free" = "y" ]]; then
       config_options+=" --enable-nonfree --enable-libfdk-aac"
 
-      if [[ $compiler_flavors != "native" ]]; then
-        config_options+=" --enable-decklink" # Error finding rpc.h in native builds even if it's available
+      if [[ $compiler_flavors != "native" || $OSTYPE != darwin* ]]; then # no Mac headers in patches/decklink_sdk/
+        config_options+=" --enable-decklink"
       fi
       # other possible options: --enable-openssl [unneeded since we already use gnutls]
     fi
@@ -2758,13 +2817,33 @@ build_ffmpeg() {
 
     do_make_and_make_install # install ffmpeg as well (for shared, to separate out the .dll's, for things that depend on it like VLC, to create static libs)
 
-    # ship the standalone libsrt.dll next to the av*.dll's, so apps that speak SRT themselves
+    # ship the standalone libsrt next to the av* libraries, so apps that speak SRT themselves
     # (P/Invoke etc.) get it straight out of the build instead of hunting one down elsewhere
-    if [[ $build_type == "shared" && -f "$srt_shared_dll" ]]; then
-      mkdir -p bin
-      cp -f "$srt_shared_dll" bin/ || exit 1
-      cp -f "$srt_shared_prefix/SRT_VERSION.md" bin/ || exit 1
-      echo "copied $(basename $srt_shared_dll) into $(pwd)/bin"
+    if [[ $build_type == "shared" && -f "$srt_shared_lib" ]]; then
+      if [[ $compiler_flavors == "native" ]]; then
+        cp -a "$srt_shared_prefix"/lib/libsrt.so* lib/ || exit 1 # -a keeps the libsrt.so -> .so.1.5 symlinks
+        cp -f "$srt_shared_prefix/SRT_VERSION.md" lib/ || exit 1
+        echo "copied libsrt.so into $(pwd)/lib"
+      else
+        mkdir -p bin
+        cp -f "$srt_shared_lib" bin/ || exit 1
+        cp -f "$srt_shared_prefix/SRT_VERSION.md" bin/ || exit 1
+        echo "copied $(basename $srt_shared_lib) into $(pwd)/bin"
+      fi
+    fi
+
+    if [[ $build_type == "shared" && $compiler_flavors == "native" ]]; then
+      # On Windows the av*.dll's find each other because they sit in the same directory. On Linux
+      # that takes a RUNPATH of $ORIGIN on every .so - without it, loading libavformat.so from C#
+      # fails on its libavcodec.so dependency. Set with patchelf after the fact, because a literal
+      # $ORIGIN does not survive configure's eval, make and the shell in one piece.
+      for so in lib/*.so.*; do
+        [[ -L $so ]] || patchelf --set-rpath '$ORIGIN' "$so" || exit 1
+      done
+      for exe in bin/ffmpeg bin/ffprobe bin/ffplay; do
+        if [[ -f $exe ]]; then patchelf --set-rpath '$ORIGIN/../lib' "$exe" || exit 1; fi
+      done
+      echo "set RUNPATH on $(pwd)/lib/*.so and bin/*"
     fi
 
     # build ismindex.exe, too, just for fun
@@ -2878,11 +2957,11 @@ build_ffmpeg_dependencies() {
   build_meson_cross
   build_mingw_std_threads
   build_zlib # Zlib in FFmpeg is autodetected.
-  [[ $dr_enable_libcaca = y ]] && build_libcaca # Uses zlib and dlfcn (on windows).
+  [[ $enable_libcaca = y ]] && build_libcaca # Uses zlib and dlfcn (on windows).
   build_bzip2 # Bzlib (bzip2) in FFmpeg is autodetected.
   build_liblzma # Lzma in FFmpeg is autodetected. Uses dlfcn.
   build_iconv # Iconv in FFmpeg is autodetected. Uses dlfcn.
-  [[ $dr_enable_ffplay = y ]] && build_sdl2 # Sdl2 in FFmpeg is autodetected. Needed to build FFPlay. Uses iconv and dlfcn.
+  [[ $enable_ffplay = y ]] && build_sdl2 # Sdl2 in FFmpeg is autodetected. Needed to build FFPlay. Uses iconv and dlfcn.
   if [[ $build_amd_amf = y ]]; then
     build_amd_amf_headers
   fi
@@ -2892,15 +2971,19 @@ build_ffmpeg_dependencies() {
   build_nv_headers
   build_libzimg # Uses dlfcn.
   build_libopenjpeg
-  build_glew
-  build_glfw
+  if [[ $compiler_flavors != "native" ]]; then
+    # Nothing in this FFmpeg build uses these (upstream added them, probably for the out-of-tree
+    # gl-transition filter). On native they would need the X11 development packages as well.
+    build_glew
+    build_glfw
+  fi
   #build_libjpeg_turbo # mplayer can use this, VLC qt might need it? [replaces libjpeg] (ffmpeg seems to not need it so commented out here)
   build_libpng # Needs zlib >= 1.0.4. Uses dlfcn.
   build_libwebp # Uses dlfcn.
   build_harfbuzz
   # harf does now include build_freetype # Uses zlib, bzip2, and libpng.
   build_libxml2 # Uses zlib, liblzma, iconv and dlfcn.
-  [[ $dr_enable_libvmaf = y ]] && build_libvmaf
+  [[ $enable_libvmaf = y ]] && build_libvmaf
   build_fontconfig # Needs freetype and libxml >= 2.6. Uses iconv and dlfcn.
   build_gmp # For rtmp support configure FFmpeg with '--enable-gmp'. Uses dlfcn.
   #build_librtmfp # mainline ffmpeg doesn't use it yet
@@ -2917,8 +3000,8 @@ build_ffmpeg_dependencies() {
   build_libopus # Uses dlfcn.
   build_libspeexdsp # Needs libogg for examples. Uses dlfcn.
   build_libspeex # Uses libspeexdsp and dlfcn.
-  [[ $dr_enable_libtheora = y ]] && build_libtheora # Needs libogg >= 1.1. Needs libvorbis >= 1.0.1, sdl and libpng for test, programs and examples [disabled]. Uses dlfcn.
-  if [[ $dr_enable_libgsm = y ]]; then
+  [[ $enable_libtheora = y ]] && build_libtheora # Needs libogg >= 1.1. Needs libvorbis >= 1.0.1, sdl and libpng for test, programs and examples [disabled]. Uses dlfcn.
+  if [[ $enable_libgsm = y ]]; then
     build_libsndfile "install-libgsm" # 'install-libgsm' installs the bundled LibGSM 6.10
   else
     build_libsndfile # still needed by librubberband etc.
@@ -2926,15 +3009,15 @@ build_ffmpeg_dependencies() {
   build_mpg123
   build_lame # Uses dlfcn, mpg123
   build_twolame # Uses libsndfile >= 1.0.0 and dlfcn.
-  [[ $dr_enable_libopencore_amr = y ]] && build_libopencore # Uses dlfcn.
-  [[ $dr_enable_libilbc = y ]] && build_libilbc # Uses dlfcn.
-  [[ $dr_enable_libmodplug = y ]] && build_libmodplug # Uses dlfcn.
-  [[ $dr_enable_libgme = y ]] && build_libgme
-  [[ $dr_enable_libbluray = y ]] && build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
-  [[ $dr_enable_libbs2b = y ]] && build_libbs2b # Needs libsndfile. Uses dlfcn.
+  [[ $enable_libopencore_amr = y ]] && build_libopencore # Uses dlfcn.
+  [[ $enable_libilbc = y ]] && build_libilbc # Uses dlfcn.
+  [[ $enable_libmodplug = y ]] && build_libmodplug # Uses dlfcn.
+  [[ $enable_libgme = y ]] && build_libgme
+  [[ $enable_libbluray = y ]] && build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
+  [[ $enable_libbs2b = y ]] && build_libbs2b # Needs libsndfile. Uses dlfcn.
   build_libsoxr
-  [[ $dr_enable_libflite = y ]] && build_libflite
-  [[ $dr_enable_libsnappy = y ]] && build_libsnappy # Uses zlib (only for unittests [disabled]) and dlfcn.
+  [[ $enable_libflite = y ]] && build_libflite
+  [[ $enable_libsnappy = y ]] && build_libsnappy # Uses zlib (only for unittests [disabled]) and dlfcn.
   build_vamp_plugin # Needs libsndfile for 'vamp-simple-host.exe' [disabled].
   build_fftw # Uses dlfcn.
   build_libsamplerate # Needs libsndfile >= 1.0.6 and fftw >= 0.15.0 for tests. Uses dlfcn.
@@ -2949,39 +3032,39 @@ build_ffmpeg_dependencies() {
     fi
     build_svt-av1
   fi
-  [[ $dr_enable_libvidstab = y ]] && build_vidstab
+  [[ $enable_libvidstab = y ]] && build_vidstab
   #build_facebooktransform360 # needs modified ffmpeg to use it so not typically useful
-  [[ $dr_enable_libmysofa = y ]] && build_libmysofa # Needed for FFmpeg's SOFAlizer filter. Uses dlfcn.
+  [[ $enable_libmysofa = y ]] && build_libmysofa # Needed for FFmpeg's SOFAlizer filter. Uses dlfcn.
   if [[ "$non_free" = "y" ]]; then
     build_fdk-aac # Uses dlfcn.
-    if [[ $compiler_flavors != "native" ]]; then
-      build_libdecklink # Error finding rpc.h in native builds even if it's available
+    if [[ $compiler_flavors != "native" || $OSTYPE != darwin* ]]; then # no Mac headers in patches/decklink_sdk/
+      build_libdecklink
     fi
   fi
-  [[ $dr_enable_libzvbi = y ]] && build_zvbi # Uses iconv, libpng and dlfcn.
+  [[ $enable_libzvbi = y ]] && build_zvbi # Uses iconv, libpng and dlfcn.
   build_fribidi # Uses dlfcn.
-  [[ $dr_enable_libass = y ]] && build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
+  [[ $enable_libass = y ]] && build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
 
   build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
   build_libsrt # requires gnutls, mingw-std-threads
   build_libsrt_shared # same sources as above, but a standalone libsrt.dll shipped next to the av*.dll's
   if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
     # Disable libaribcatption on old versions
-    [[ $dr_enable_libaribcaption = y ]] && build_libaribcaption
+    [[ $enable_libaribcaption = y ]] && build_libaribcaption
   fi
-  [[ $dr_enable_libaribb24 = y ]] && build_libaribb24
-  [[ $dr_enable_libtesseract = y ]] && build_libtesseract
+  [[ $enable_libaribb24 = y ]] && build_libaribb24
+  [[ $enable_libtesseract = y ]] && build_libtesseract
   build_lensfun  # requires png, zlib, iconv
   # build_libtensorflow # broken
-  [[ $dr_enable_libvpx = y ]] && build_libvpx
-  [[ $dr_enable_libx265 = y ]] && build_libx265
-  [[ $dr_enable_libopenh264 = y ]] && build_libopenh264
-  [[ $dr_enable_libaom = y ]] && build_libaom
+  [[ $enable_libvpx = y ]] && build_libvpx
+  [[ $enable_libx265 = y ]] && build_libx265
+  [[ $enable_libopenh264 = y ]] && build_libopenh264
+  [[ $enable_libaom = y ]] && build_libaom
   build_dav1d
   if [[ $OSTYPE != darwin* ]]; then
     build_vulkan
   fi
-  [[ $dr_enable_avisynth = y ]] && build_avisynth
+  [[ $enable_avisynth = y ]] && build_avisynth
   build_libx264 # at bottom as it might internally build a copy of ffmpeg (which needs all the above deps...
  }
 
@@ -3053,38 +3136,39 @@ git_get_latest=y
 prefer_stable=y # Only for x264 and x265.
 build_intel_qsv=y # note: not windows xp friendly!
 build_amd_amf=y
+decklink_sdk_dir= # native (Linux) builds only, defaults to patches/decklink_sdk/linux - see build_libdecklink
 disable_nonfree=y # comment out to force user y/n selection
 
-# DR: optional libraries — set to "n" to skip building and enabling in FFmpeg
-dr_enable_libtesseract=n   # OCR: read text from images
-dr_enable_libflite=n       # TTS: text to speech
-dr_enable_libvmaf=n        # video quality metric (Netflix VMAF)
-dr_enable_libcaca=n        # ASCII-art video output
-dr_enable_libgme=n         # chiptune/game music (Amiga, Nintendo, etc.)
-dr_enable_libmodplug=n     # MOD/tracker music playback
-dr_enable_libvidstab=n     # video stabilization
-dr_enable_libdavs2=n       # Chinese AVS2 decoder
-dr_enable_libxavs=n        # Chinese AVS encoder
-dr_enable_libxavs2=n       # Chinese AVS2 encoder
-dr_enable_avisynth=n       # Windows video-scripting (AviSynth, legacy)
-dr_enable_libbs2b=n        # Bauer stereo-to-binaural DSP
-dr_enable_libgsm=n         # GSM 06.10 codec (old mobile audio)
-dr_enable_libilbc=n        # iLBC VoIP codec
-dr_enable_libopencore_amr=n # AMR-NB/WB + vo-amrwbenc (mobile telephony)
-dr_enable_libtheora=n      # Ogg Theora video (legacy web video)
-dr_enable_libopenh264=n    # Cisco H.264 (limited; libx264 is used instead)
-dr_enable_libsnappy=n      # Snappy lossless compression
-dr_enable_libzvbi=n        # VBI/teletext decoder (analog TV capture)
-dr_enable_libmysofa=n      # SOFA/HRTF 3D audio (binaural)
-dr_enable_libaribcaption=n # Japanese ARIB TV subtitles
-dr_enable_libaribb24=n     # Japanese ARIB broadcast data
-dr_enable_libvpx=y         # VP8/VP9 encoder+decoder (libvpx)
-dr_enable_libaom=n         # AV1 reference enc/dec — very slow build, redundant with libsvtav1+libdav1d
-dr_enable_libx265=n        # HEVC/H.265 encoder — large + slow build; set n if you don't need HEVC
-dr_enable_gray=y           # grayscale pixel-format support (no separate lib)
-dr_enable_libass=n         # ASS/SSA subtitle rendering
-dr_enable_libbluray=n      # Blu-ray playback support (rarely needed for broadcast/MXF)
-dr_enable_ffplay=n         # ffplay media player (requires SDL2 — skip to save build time)
+# Optional libraries — set to "n" to skip building and enabling in FFmpeg
+enable_libtesseract=n   # OCR: read text from images
+enable_libflite=n       # TTS: text to speech
+enable_libvmaf=n        # video quality metric (Netflix VMAF)
+enable_libcaca=n        # ASCII-art video output
+enable_libgme=n         # chiptune/game music (Amiga, Nintendo, etc.)
+enable_libmodplug=n     # MOD/tracker music playback
+enable_libvidstab=n     # video stabilization
+enable_libdavs2=n       # Chinese AVS2 decoder
+enable_libxavs=n        # Chinese AVS encoder
+enable_libxavs2=n       # Chinese AVS2 encoder
+enable_avisynth=n       # Windows video-scripting (AviSynth, legacy)
+enable_libbs2b=n        # Bauer stereo-to-binaural DSP
+enable_libgsm=n         # GSM 06.10 codec (old mobile audio)
+enable_libilbc=n        # iLBC VoIP codec
+enable_libopencore_amr=n # AMR-NB/WB + vo-amrwbenc (mobile telephony)
+enable_libtheora=n      # Ogg Theora video (legacy web video)
+enable_libopenh264=n    # Cisco H.264 (limited; libx264 is used instead)
+enable_libsnappy=n      # Snappy lossless compression
+enable_libzvbi=n        # VBI/teletext decoder (analog TV capture)
+enable_libmysofa=n      # SOFA/HRTF 3D audio (binaural)
+enable_libaribcaption=n # Japanese ARIB TV subtitles
+enable_libaribb24=n     # Japanese ARIB broadcast data
+enable_libvpx=y         # VP8/VP9 encoder+decoder (libvpx)
+enable_libaom=n         # AV1 reference enc/dec — very slow build, redundant with libsvtav1+libdav1d
+enable_libx265=n        # HEVC/H.265 encoder — large + slow build; set n if you don't need HEVC
+enable_gray=y           # grayscale pixel-format support (no separate lib)
+enable_libass=n         # ASS/SSA subtitle rendering
+enable_libbluray=n      # Blu-ray playback support (rarely needed for broadcast/MXF)
+enable_ffplay=n         # ffplay media player (requires SDL2 — skip to save build time)
 
 original_cflags='-mtune=generic -O3' # high compatible by default, see #219, some other good options are listed below, or you could use -march=native to target your local box:
 original_cppflags='-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0' # Needed for mingw-w64 7 as FORTIFY_SOURCE is now partially implemented, but not actually working
@@ -3126,6 +3210,7 @@ while true; do
       --build-cpu-count=[cpu_cores_on_box] set to lower than your cpu cores if the background processes eating all your cpu bugs your desktop usage
       --disable-nonfree=y (set to n to include nonfree like libfdk-aac,decklink)
       --build-intel-qsv=y (set to y to include the [non windows xp compat.] qsv library and ffmpeg module. NB this not not hevc_qsv...
+      --decklink-sdk-dir=[default patches/decklink_sdk/linux] native (Linux) builds only: take the Linux DeckLink headers from here instead - must be the same SDK version as patches/decklink_sdk/windows
       --sandbox-ok=n [skip sandbox prompt if y]
       -d [meaning \"defaults\" skip all prompts, just build ffmpeg static 64 bit with some defaults for speed like no git updates]
       --build-libmxf=n [builds libMXF, libMXF++, writeavidmxfi.exe and writeaviddv50.exe from the BBC-Ingex project]
@@ -3161,6 +3246,7 @@ while true; do
     --git-get-latest=* ) git_get_latest="${1#*=}"; shift ;;
     --build-amd-amf=* ) build_amd_amf="${1#*=}"; shift ;;
     --build-intel-qsv=* ) build_intel_qsv="${1#*=}"; shift ;;
+    --decklink-sdk-dir=* ) decklink_sdk_dir="$(realpath -m "${1#*=}")"; shift ;; # -m: a wrong path must fail the check later, not vanish
     --build-x264-with-libav=* ) build_x264_with_libav="${1#*=}"; shift ;;
     --build-mplayer=* ) build_mplayer="${1#*=}"; shift ;;
     --cflags=* )
@@ -3223,6 +3309,25 @@ original_path="$PATH"
 
 if [[ $compiler_flavors == "native" ]]; then
   echo "starting native build..."
+  # Only the native flavor needs this: patchelf, for the RUNPATH fix-up in build_ffmpeg.
+  if command -v dpkg-query >/dev/null; then
+    native_missing=""
+    for p in patchelf; do
+      dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "ok installed" || native_missing+=" $p"
+    done
+    if [[ -n $native_missing ]]; then
+      echo_and_exit "the native build needs:$native_missing - install with: sudo apt-get install -y$native_missing"
+    fi
+  fi
+  # DeckLink: the Linux headers in patches/decklink_sdk/ (see build_libdecklink), unless
+  # --decklink-sdk-dir points somewhere else. Checked here so a missing one fails before the
+  # hour of building dependencies rather than after.
+  if [[ -z $decklink_sdk_dir ]]; then decklink_sdk_dir="$patch_dir/decklink_sdk/linux"; fi
+  if [[ $non_free == "y" && $OSTYPE != darwin* ]]; then
+    if [[ ! -f "$decklink_sdk_dir/DeckLinkAPI.h" || ! -f "$decklink_sdk_dir/DeckLinkAPIDispatch.cpp" ]]; then
+      echo_and_exit "no Linux DeckLink headers in $decklink_sdk_dir - run patches/decklink_sdk/update.sh \"/path/to/Blackmagic DeckLink SDK\" first, see patches/decklink_sdk/README.md"
+    fi
+  fi
   # realpath so if you run it from a different symlink path it doesn't rebuild the world...
   # mkdir required for realpath first time
   mkdir -p $cur_dir/cross_compilers/native
@@ -3240,11 +3345,16 @@ if [[ $compiler_flavors == "native" ]]; then
   #  bs2b doesn't use pkg-config, sndfile needed Carbon :|
   export CPATH=$cur_dir/cross_compilers/native/include:/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Carbon.framework/Versions/A/Headers # C_INCLUDE_PATH
   export LIBRARY_PATH=$cur_dir/cross_compilers/native/lib
+  # With --build-ffmpeg-shared=y every dependency below ends up inside a shared libav*.so, and on
+  # Linux a static .a only links into a .so if it was compiled position independent.
+  original_cflags+=" -fPIC"
+  reset_cflags
+  export CXXFLAGS="$CFLAGS"
   work_dir="$(realpath $cur_dir/native)"
   mkdir -p "$work_dir"
   cd "$work_dir"
     build_ffmpeg_dependencies
-    build_ffmpeg
+    build_apps # honours --build-ffmpeg-static/--build-ffmpeg-shared, like the win32/win64 builds do
   cd ..
 fi
 

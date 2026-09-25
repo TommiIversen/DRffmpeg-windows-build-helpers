@@ -1,6 +1,86 @@
 ffmpeg-windows-build-helpers
 ============================
 
+Builds in this fork
+-------------------
+
+> This section covers what this fork adds. Everything below it is the upstream project's own README.
+
+We need three builds from time to time: a shared build for Windows and one for Linux, which must
+have the same capabilities, and now and then a plain static build for Windows. All three come out
+of `cross_compile_ffmpeg.sh` with the same `config_options`, so the list of what FFmpeg is built
+with lives in one place.
+
+**Windows, shared** — `ffmpeg.exe` plus `av*.dll`:
+
+    $ ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64 \
+        --build-intel-qsv=n --build-ffmpeg-shared=y --build-ffmpeg-static=n
+
+Result in `sandbox/win64/ffmpeg_git_with_fdk_aac_xp_compat_shared/bin/`, with `libsrt.dll` and
+`SRT_VERSION.md` next to the `av*.dll` files.
+
+**Linux, shared** — `ffmpeg` plus `libav*.so`:
+
+    $ ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=native \
+        --build-intel-qsv=n --build-ffmpeg-shared=y --build-ffmpeg-static=n
+
+Result in `sandbox/native/ffmpeg_git_with_fdk_aac_xp_compat_shared/`: the libraries plus
+`libsrt.so` and `SRT_VERSION.md` in `lib/`, `ffmpeg` in `bin/`. Every `.so` carries
+`RUNPATH=$ORIGIN`, so they find each other the way the DLLs do on Windows: load them from that
+directory and it works without `LD_LIBRARY_PATH`.
+
+**Windows, static** — one self-contained `ffmpeg.exe`:
+
+    $ ./cross_compile_ffmpeg.sh --disable-nonfree=n --compiler-flavors=win64 \
+        --build-intel-qsv=n
+
+Result in `sandbox/win64/ffmpeg_git_with_fdk_aac_xp_compat/`. SRT is linked into the executable,
+so nothing is copied next to it - but `libsrt.dll` is still built, in
+`sandbox/win64/srt-1.5.4_shared_install/bin/`, if the C# side needs it.
+
+### Checking that Windows and Linux match
+
+    $ ./compare_ffmpeg_builds.sh
+
+compares the two shared builds by the `CONFIG_` flags FFmpeg's configure wrote into each build
+tree, so nothing has to be run. Differences that come with the platform (dshow vs v4l2, d3d11va
+vs vaapi, ...) are listed separately. Anything else is a real gap and makes it exit 1. Run it
+after every change to either build.
+
+The comparison only means something when both trees are on the same FFmpeg commit; the script
+warns when they are not. Both builds check out FFmpeg master, so build them close together, or
+pin both with `--ffmpeg-git-checkout-version=<commit>`.
+
+### Linux prerequisites
+
+The native build needs `patchelf` on top of what the script already asks for. It checks before
+doing anything and prints the `apt-get` line if it is missing.
+
+The Linux build is meant to run headless under a console app, so it has no X11 screen grabbing
+and no libv4l2 - both would make `libavdevice.so` depend on system libraries the target may not
+have. Like the Windows build, configure only sees the libraries the script built itself.
+
+**NVIDIA.** nvenc/nvdec need only the driver at run time - no CUDA toolkit.
+
+### DeckLink
+
+Both platforms build against the headers of one Blackmagic Desktop Video SDK,
+kept in `patches/decklink_sdk/`, and the build stops if the Windows and Linux headers are not
+the same version. Fill them once per machine from the unpacked SDK (a registration-gated
+download from blackmagicdesign.com/support):
+
+    $ patches/decklink_sdk/update.sh "/path/to/Blackmagic DeckLink SDK 15.3"
+
+They are not in git yet - [patches/decklink_sdk/README.md](patches/decklink_sdk/README.md) has
+why, and what it takes to change that. The SDK version is also the oldest usable driver: FFmpeg
+refuses Desktop Video drivers older than the SDK it was built with.
+
+### Library names differ across the two platforms
+
+The same library is `avformat-63.dll` on Windows and `libavformat.so.63` on Linux, and
+`libsrt.dll` versus `libsrt.so`. One `DllImport` name cannot cover both, so the C# side needs a
+`NativeLibrary.SetDllImportResolver` that maps the names in one place.
+
 This helper script lets you cross compile a windows-based 32 or 64-bit version of ffmpeg/mplayer/mp4box.exe, etc,  including their dependencies and libraries that they use.
 Note that I do offer custom builds, price negotiable. Ping me at rogerdpack@gmail.com and I'll do the work for you :) 
 

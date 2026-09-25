@@ -6,6 +6,7 @@ config.log
 /sandbox/cross_compilers/
 /sandbox/redist/
 /sandbox/win64/
+/sandbox/native/
 .vs/
 patches/npp/
 
@@ -20,3 +21,8 @@ meson-cross.mingw.txt
 /.vs/ffmpeg-windows-build-helpers/v16/Browse.VC.db-shm
 /.vs/ffmpeg-windows-build-helpers/v16/Browse.VC.db-wal
 /.vs/ffmpeg-windows-build-helpers/v16/Browse.VC.opendb
+
+# Blackmagic DeckLink SDK headers, filled in locally by patches/decklink_sdk/update.sh. Kept out
+# of git until it is settled that they may be published here - see its README.md.
+/patches/decklink_sdk/linux/
+/patches/decklink_sdk/windows/

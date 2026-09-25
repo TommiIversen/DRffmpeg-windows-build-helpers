@@ -2445,7 +2445,7 @@ build_ffmpeg() {
     fi
 
     init_options="--pkg-config=pkg-config --pkg-config-flags=--static --extra-version=ffmpeg-windows-build-helpers --enable-version3 --disable-debug --disable-w32threads"
-    [[ $dr_enable_ffplay = n ]] && init_options+=" --disable-ffplay"
+    [[ $enable_ffplay = n ]] && init_options+=" --disable-ffplay"
     if [[ $compiler_flavors != "native" ]]; then
       init_options+=" --arch=$arch --target-os=mingw32 --cross-prefix=$cross_prefix"
     else
@@ -2459,41 +2459,41 @@ build_ffmpeg() {
       # Fix WinXP incompatibility by disabling Microsoft's Secure Channel, because Windows XP doesn't support TLS 1.1 and 1.2, but with GnuTLS or OpenSSL it does.  XP compat!
     fi
     config_options="$init_options"
-    [[ $dr_enable_libcaca = y ]] && config_options+=" --enable-libcaca"
+    [[ $enable_libcaca = y ]] && config_options+=" --enable-libcaca"
     config_options+=" --enable-gray"
-    [[ $dr_enable_libtesseract = y ]] && config_options+=" --enable-libtesseract"
+    [[ $enable_libtesseract = y ]] && config_options+=" --enable-libtesseract"
     config_options+=" --enable-fontconfig"
     config_options+=" --enable-gmp"
     config_options+=" --enable-libass"
     config_options+=" --enable-libbluray"
-    [[ $dr_enable_libbs2b = y ]] && config_options+=" --enable-libbs2b"
-    [[ $dr_enable_libflite = y ]] && config_options+=" --enable-libflite"
+    [[ $enable_libbs2b = y ]] && config_options+=" --enable-libbs2b"
+    [[ $enable_libflite = y ]] && config_options+=" --enable-libflite"
     config_options+=" --enable-libfreetype"
     config_options+=" --enable-libfribidi"
     config_options+=" --enable-libharfbuzz"
     config_options+=" --enable-filter=drawtext"
-    [[ $dr_enable_libgme = y ]] && config_options+=" --enable-libgme"
-    [[ $dr_enable_libgsm = y ]] && config_options+=" --enable-libgsm"
-    [[ $dr_enable_libilbc = y ]] && config_options+=" --enable-libilbc"
-    [[ $dr_enable_libmodplug = y ]] && config_options+=" --enable-libmodplug"
+    [[ $enable_libgme = y ]] && config_options+=" --enable-libgme"
+    [[ $enable_libgsm = y ]] && config_options+=" --enable-libgsm"
+    [[ $enable_libilbc = y ]] && config_options+=" --enable-libilbc"
+    [[ $enable_libmodplug = y ]] && config_options+=" --enable-libmodplug"
     config_options+=" --enable-libmp3lame"
-    [[ $dr_enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrnb"
-    [[ $dr_enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrwb"
+    [[ $enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrnb"
+    [[ $enable_libopencore_amr = y ]] && config_options+=" --enable-libopencore-amrwb"
     config_options+=" --enable-libopus"
-    [[ $dr_enable_libsnappy = y ]] && config_options+=" --enable-libsnappy"
+    [[ $enable_libsnappy = y ]] && config_options+=" --enable-libsnappy"
     config_options+=" --enable-libsoxr"
     config_options+=" --enable-libspeex"
-    [[ $dr_enable_libtheora = y ]] && config_options+=" --enable-libtheora"
+    [[ $enable_libtheora = y ]] && config_options+=" --enable-libtheora"
     config_options+=" --enable-libtwolame"
-    [[ $dr_enable_libopencore_amr = y ]] && config_options+=" --enable-libvo-amrwbenc"
+    [[ $enable_libopencore_amr = y ]] && config_options+=" --enable-libvo-amrwbenc"
     config_options+=" --enable-libvorbis"
     config_options+=" --enable-libwebp"
     config_options+=" --enable-libzimg"
-    [[ $dr_enable_libzvbi = y ]] && config_options+=" --enable-libzvbi"
-    [[ $dr_enable_libmysofa = y ]] && config_options+=" --enable-libmysofa"
+    [[ $enable_libzvbi = y ]] && config_options+=" --enable-libzvbi"
+    [[ $enable_libmysofa = y ]] && config_options+=" --enable-libmysofa"
     config_options+=" --enable-libopenjpeg"
-    [[ $dr_enable_libopenh264 = y ]] && config_options+=" --enable-libopenh264"
-    [[ $dr_enable_libvmaf = y ]] && config_options+=" --enable-libvmaf"
+    [[ $enable_libopenh264 = y ]] && config_options+=" --enable-libopenh264"
+    [[ $enable_libvmaf = y ]] && config_options+=" --enable-libvmaf"
     config_options+=" --enable-libsrt"
     config_options+=" --enable-libxml2"
     config_options+=" --enable-opengl"
@@ -2564,8 +2564,8 @@ build_ffmpeg() {
       fi
       config_options+=" --enable-libsvtav1"
     fi # else doesn't work/matter with 32 bit
-    [[ $dr_enable_libvpx = y ]] && config_options+=" --enable-libvpx"
-    [[ $dr_enable_libaom = y ]] && config_options+=" --enable-libaom"
+    [[ $enable_libvpx = y ]] && config_options+=" --enable-libvpx"
+    [[ $enable_libaom = y ]] && config_options+=" --enable-libaom"
 
     if [[ $compiler_flavors != "native" ]]; then
       config_options+=" --enable-nvenc --enable-nvdec" # don't work OS X
@@ -2606,22 +2606,22 @@ build_ffmpeg() {
     
     if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
       # Disable libaribcatption on old versions
-      [[ $dr_enable_libaribcaption = y ]] && config_options+=" --enable-libaribcaption" # libaribcatption (MIT licensed)
+      [[ $enable_libaribcaption = y ]] && config_options+=" --enable-libaribcaption" # libaribcatption (MIT licensed)
     fi
     
     if [[ $enable_gpl == 'y' ]]; then
       config_options+=" --enable-gpl --enable-frei0r --enable-librubberband --enable-libx264"
-      [[ $dr_enable_libx265 = y ]] && config_options+=" --enable-libx265"
-      [[ $dr_enable_avisynth = y ]] && config_options+=" --enable-avisynth"
-      [[ $dr_enable_libaribb24 = y ]] && config_options+=" --enable-libaribb24"
-      [[ $dr_enable_libvidstab = y ]] && config_options+=" --enable-libvidstab"
+      [[ $enable_libx265 = y ]] && config_options+=" --enable-libx265"
+      [[ $enable_avisynth = y ]] && config_options+=" --enable-avisynth"
+      [[ $enable_libaribb24 = y ]] && config_options+=" --enable-libaribb24"
+      [[ $enable_libvidstab = y ]] && config_options+=" --enable-libvidstab"
       config_options+=" --enable-libxvid"
-      [[ $dr_enable_libdavs2 = y ]] && config_options+=" --enable-libdavs2"
+      [[ $enable_libdavs2 = y ]] && config_options+=" --enable-libdavs2"
       if [[ $host_target != 'i686-w64-mingw32' ]]; then
-        [[ $dr_enable_libxavs2 = y ]] && config_options+=" --enable-libxavs2"
+        [[ $enable_libxavs2 = y ]] && config_options+=" --enable-libxavs2"
       fi
       if [[ $compiler_flavors != "native" ]]; then
-        [[ $dr_enable_libxavs = y ]] && config_options+=" --enable-libxavs" # don't compile OS X
+        [[ $enable_libxavs = y ]] && config_options+=" --enable-libxavs" # don't compile OS X
       fi
     fi
     local licensed_gpl=n # lgpl build with libx264 included for those with "commercial" license :)
@@ -2774,11 +2774,11 @@ build_ffmpeg_dependencies() {
   build_meson_cross
   build_mingw_std_threads
   build_zlib # Zlib in FFmpeg is autodetected.
-  [[ $dr_enable_libcaca = y ]] && build_libcaca # Uses zlib and dlfcn (on windows).
+  [[ $enable_libcaca = y ]] && build_libcaca # Uses zlib and dlfcn (on windows).
   build_bzip2 # Bzlib (bzip2) in FFmpeg is autodetected.
   build_liblzma # Lzma in FFmpeg is autodetected. Uses dlfcn.
   build_iconv # Iconv in FFmpeg is autodetected. Uses dlfcn.
-  [[ $dr_enable_ffplay = y ]] && build_sdl2 # Sdl2 in FFmpeg is autodetected. Needed to build FFPlay. Uses iconv and dlfcn.
+  [[ $enable_ffplay = y ]] && build_sdl2 # Sdl2 in FFmpeg is autodetected. Needed to build FFPlay. Uses iconv and dlfcn.
   if [[ $build_amd_amf = y ]]; then
     build_amd_amf_headers
   fi
@@ -2796,7 +2796,7 @@ build_ffmpeg_dependencies() {
   build_harfbuzz
   # harf does now include build_freetype # Uses zlib, bzip2, and libpng.
   build_libxml2 # Uses zlib, liblzma, iconv and dlfcn.
-  [[ $dr_enable_libvmaf = y ]] && build_libvmaf
+  [[ $enable_libvmaf = y ]] && build_libvmaf
   build_fontconfig # Needs freetype and libxml >= 2.6. Uses iconv and dlfcn.
   build_gmp # For rtmp support configure FFmpeg with '--enable-gmp'. Uses dlfcn.
   #build_librtmfp # mainline ffmpeg doesn't use it yet
@@ -2813,8 +2813,8 @@ build_ffmpeg_dependencies() {
   build_libopus # Uses dlfcn.
   build_libspeexdsp # Needs libogg for examples. Uses dlfcn.
   build_libspeex # Uses libspeexdsp and dlfcn.
-  [[ $dr_enable_libtheora = y ]] && build_libtheora # Needs libogg >= 1.1. Needs libvorbis >= 1.0.1, sdl and libpng for test, programs and examples [disabled]. Uses dlfcn.
-  if [[ $dr_enable_libgsm = y ]]; then
+  [[ $enable_libtheora = y ]] && build_libtheora # Needs libogg >= 1.1. Needs libvorbis >= 1.0.1, sdl and libpng for test, programs and examples [disabled]. Uses dlfcn.
+  if [[ $enable_libgsm = y ]]; then
     build_libsndfile "install-libgsm" # 'install-libgsm' installs the bundled LibGSM 6.10
   else
     build_libsndfile # still needed by librubberband etc.
@@ -2822,15 +2822,15 @@ build_ffmpeg_dependencies() {
   build_mpg123
   build_lame # Uses dlfcn, mpg123
   build_twolame # Uses libsndfile >= 1.0.0 and dlfcn.
-  [[ $dr_enable_libopencore_amr = y ]] && build_libopencore # Uses dlfcn.
-  [[ $dr_enable_libilbc = y ]] && build_libilbc # Uses dlfcn.
-  [[ $dr_enable_libmodplug = y ]] && build_libmodplug # Uses dlfcn.
-  [[ $dr_enable_libgme = y ]] && build_libgme
+  [[ $enable_libopencore_amr = y ]] && build_libopencore # Uses dlfcn.
+  [[ $enable_libilbc = y ]] && build_libilbc # Uses dlfcn.
+  [[ $enable_libmodplug = y ]] && build_libmodplug # Uses dlfcn.
+  [[ $enable_libgme = y ]] && build_libgme
   build_libbluray # Needs libxml >= 2.6, freetype, fontconfig. Uses dlfcn.
-  [[ $dr_enable_libbs2b = y ]] && build_libbs2b # Needs libsndfile. Uses dlfcn.
+  [[ $enable_libbs2b = y ]] && build_libbs2b # Needs libsndfile. Uses dlfcn.
   build_libsoxr
-  [[ $dr_enable_libflite = y ]] && build_libflite
-  [[ $dr_enable_libsnappy = y ]] && build_libsnappy # Uses zlib (only for unittests [disabled]) and dlfcn.
+  [[ $enable_libflite = y ]] && build_libflite
+  [[ $enable_libsnappy = y ]] && build_libsnappy # Uses zlib (only for unittests [disabled]) and dlfcn.
   build_vamp_plugin # Needs libsndfile for 'vamp-simple-host.exe' [disabled].
   build_fftw # Uses dlfcn.
   build_libsamplerate # Needs libsndfile >= 1.0.6 and fftw >= 0.15.0 for tests. Uses dlfcn.
@@ -2845,16 +2845,16 @@ build_ffmpeg_dependencies() {
     fi
     build_svt-av1
   fi
-  [[ $dr_enable_libvidstab = y ]] && build_vidstab
+  [[ $enable_libvidstab = y ]] && build_vidstab
   #build_facebooktransform360 # needs modified ffmpeg to use it so not typically useful
-  [[ $dr_enable_libmysofa = y ]] && build_libmysofa # Needed for FFmpeg's SOFAlizer filter. Uses dlfcn.
+  [[ $enable_libmysofa = y ]] && build_libmysofa # Needed for FFmpeg's SOFAlizer filter. Uses dlfcn.
   if [[ "$non_free" = "y" ]]; then
     build_fdk-aac # Uses dlfcn.
     if [[ $compiler_flavors != "native" ]]; then
       build_libdecklink # Error finding rpc.h in native builds even if it's available
     fi
   fi
-  [[ $dr_enable_libzvbi = y ]] && build_zvbi # Uses iconv, libpng and dlfcn.
+  [[ $enable_libzvbi = y ]] && build_zvbi # Uses iconv, libpng and dlfcn.
   build_fribidi # Uses dlfcn.
   build_libass # Needs freetype >= 9.10.3 (see https://bugs.launchpad.net/ubuntu/+source/freetype1/+bug/78573 o_O) and fribidi >= 0.19.0. Uses fontconfig >= 2.10.92, iconv and dlfcn.
 
@@ -2862,21 +2862,21 @@ build_ffmpeg_dependencies() {
   build_libsrt # requires gnutls, mingw-std-threads
   if [[ $ffmpeg_git_checkout_version != *"n6.0"* ]] && [[ $ffmpeg_git_checkout_version != *"n5"* ]] && [[ $ffmpeg_git_checkout_version != *"n4"* ]] && [[ $ffmpeg_git_checkout_version != *"n3"* ]] && [[ $ffmpeg_git_checkout_version != *"n2"* ]]; then
     # Disable libaribcatption on old versions
-    [[ $dr_enable_libaribcaption = y ]] && build_libaribcaption
+    [[ $enable_libaribcaption = y ]] && build_libaribcaption
   fi
-  [[ $dr_enable_libaribb24 = y ]] && build_libaribb24
-  [[ $dr_enable_libtesseract = y ]] && build_libtesseract
+  [[ $enable_libaribb24 = y ]] && build_libaribb24
+  [[ $enable_libtesseract = y ]] && build_libtesseract
   build_lensfun  # requires png, zlib, iconv
   # build_libtensorflow # broken
-  [[ $dr_enable_libvpx = y ]] && build_libvpx
-  [[ $dr_enable_libx265 = y ]] && build_libx265
-  [[ $dr_enable_libopenh264 = y ]] && build_libopenh264
-  [[ $dr_enable_libaom = y ]] && build_libaom
+  [[ $enable_libvpx = y ]] && build_libvpx
+  [[ $enable_libx265 = y ]] && build_libx265
+  [[ $enable_libopenh264 = y ]] && build_libopenh264
+  [[ $enable_libaom = y ]] && build_libaom
   build_dav1d
   if [[ $OSTYPE != darwin* ]]; then
     build_vulkan
   fi
-  [[ $dr_enable_avisynth = y ]] && build_avisynth
+  [[ $enable_avisynth = y ]] && build_avisynth
   build_libx264 # at bottom as it might internally build a copy of ffmpeg (which needs all the above deps...
  }
 
@@ -2950,33 +2950,33 @@ build_intel_qsv=y # note: not windows xp friendly!
 build_amd_amf=y
 disable_nonfree=y # comment out to force user y/n selection
 
-# DR: optional libraries — set to "n" to skip building and enabling in FFmpeg
-dr_enable_libtesseract=n   # OCR: read text from images
-dr_enable_libflite=n       # TTS: text to speech
-dr_enable_libvmaf=n        # video quality metric (Netflix VMAF)
-dr_enable_libcaca=n        # ASCII-art video output
-dr_enable_libgme=n         # chiptune/game music (Amiga, Nintendo, etc.)
-dr_enable_libmodplug=n     # MOD/tracker music playback
-dr_enable_libvidstab=n     # video stabilization
-dr_enable_libdavs2=n       # Chinese AVS2 decoder
-dr_enable_libxavs=n        # Chinese AVS encoder
-dr_enable_libxavs2=n       # Chinese AVS2 encoder
-dr_enable_avisynth=n       # Windows video-scripting (AviSynth, legacy)
-dr_enable_libbs2b=n        # Bauer stereo-to-binaural DSP
-dr_enable_libgsm=n         # GSM 06.10 codec (old mobile audio)
-dr_enable_libilbc=n        # iLBC VoIP codec
-dr_enable_libopencore_amr=n # AMR-NB/WB + vo-amrwbenc (mobile telephony)
-dr_enable_libtheora=n      # Ogg Theora video (legacy web video)
-dr_enable_libopenh264=n    # Cisco H.264 (limited; libx264 is used instead)
-dr_enable_libsnappy=n      # Snappy lossless compression
-dr_enable_libzvbi=n        # VBI/teletext decoder (analog TV capture)
-dr_enable_libmysofa=n      # SOFA/HRTF 3D audio (binaural)
-dr_enable_libaribcaption=n # Japanese ARIB TV subtitles
-dr_enable_libaribb24=n     # Japanese ARIB broadcast data
-dr_enable_libvpx=n         # VP8/VP9 encoder+decoder (libvpx)
-dr_enable_libaom=n         # AV1 reference enc/dec — very slow build, redundant with libsvtav1+libdav1d
-dr_enable_libx265=n        # HEVC/H.265 encoder — large + slow build; set n if you don't need HEVC
-dr_enable_ffplay=n         # ffplay media player (requires SDL2 — skip to save build time)
+# Optional libraries — set to "n" to skip building and enabling in FFmpeg
+enable_libtesseract=n   # OCR: read text from images
+enable_libflite=n       # TTS: text to speech
+enable_libvmaf=n        # video quality metric (Netflix VMAF)
+enable_libcaca=n        # ASCII-art video output
+enable_libgme=n         # chiptune/game music (Amiga, Nintendo, etc.)
+enable_libmodplug=n     # MOD/tracker music playback
+enable_libvidstab=n     # video stabilization
+enable_libdavs2=n       # Chinese AVS2 decoder
+enable_libxavs=n        # Chinese AVS encoder
+enable_libxavs2=n       # Chinese AVS2 encoder
+enable_avisynth=n       # Windows video-scripting (AviSynth, legacy)
+enable_libbs2b=n        # Bauer stereo-to-binaural DSP
+enable_libgsm=n         # GSM 06.10 codec (old mobile audio)
+enable_libilbc=n        # iLBC VoIP codec
+enable_libopencore_amr=n # AMR-NB/WB + vo-amrwbenc (mobile telephony)
+enable_libtheora=n      # Ogg Theora video (legacy web video)
+enable_libopenh264=n    # Cisco H.264 (limited; libx264 is used instead)
+enable_libsnappy=n      # Snappy lossless compression
+enable_libzvbi=n        # VBI/teletext decoder (analog TV capture)
+enable_libmysofa=n      # SOFA/HRTF 3D audio (binaural)
+enable_libaribcaption=n # Japanese ARIB TV subtitles
+enable_libaribb24=n     # Japanese ARIB broadcast data
+enable_libvpx=n         # VP8/VP9 encoder+decoder (libvpx)
+enable_libaom=n         # AV1 reference enc/dec — very slow build, redundant with libsvtav1+libdav1d
+enable_libx265=n        # HEVC/H.265 encoder — large + slow build; set n if you don't need HEVC
+enable_ffplay=n         # ffplay media player (requires SDL2 — skip to save build time)
 
 original_cflags='-mtune=generic -O3' # high compatible by default, see #219, some other good options are listed below, or you could use -march=native to target your local box:
 original_cppflags='-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0' # Needed for mingw-w64 7 as FORTIFY_SOURCE is now partially implemented, but not actually working
